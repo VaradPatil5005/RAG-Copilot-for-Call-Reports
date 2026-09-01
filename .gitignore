@@ -1,0 +1,36 @@
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Env
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store
+
+# Local data (Phase 2+ ingestion substitutes for ADLS; Phase 3+ hybrid index)
+apps/api/data/raw/*
+apps/api/data/derived/*
+apps/api/data/index/*
+apps/api/data/synthetic_corpus/*
+apps/api/data/metadata.sqlite3
+!apps/api/data/raw/.gitkeep
+!apps/api/data/derived/.gitkeep
+!apps/api/data/index/.gitkeep
+
+# pytest
+.pytest_cache/
+
+# Editor
+.vscode/
+.idea/

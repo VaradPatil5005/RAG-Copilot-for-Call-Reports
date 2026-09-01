@@ -1,0 +1,7 @@
+# Test-only dependencies -- not needed to run the API itself.
+# `httpx` is also a transitive dependency of `fastapi`'s test client, but
+# pinned here explicitly since tests import it directly.
+pytest==9.1.1
+httpx==0.28.1
+reportlab==4.4.10
+locust==2.31.5

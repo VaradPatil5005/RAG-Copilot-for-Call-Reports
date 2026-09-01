@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ENTERPRISE RAG COPILOT — DESIGN TOKENS
+   Signal-extraction visual identity:
+   amber = AI reasoning/retrieval-in-progress state
+   teal  = grounded, verified evidence state
+   ============================================================ */
+
+:root {
+  --color-bg:            #0A0D12;
+  --color-surface:       #12161F;
+  --color-elevated:      #1B212C;
+  --color-elevated-2:    #232A37;
+  --color-border:        #262E3B;
+  --color-border-subtle: #1C222D;
+
+  --color-text:          #E8EAEE;
+  --color-text-muted:    #9AA3B2;
+  --color-text-faint:    #616B7D;
+
+  --color-primary:       #F0A857; /* AI reasoning / thinking */
+  --color-primary-dim:   #6B5432;
+  --color-evidence:      #4FD1C5; /* grounded / verified evidence */
+  --color-evidence-dim:  #295C57;
+
+  --color-success:       #6EE7A8;
+  --color-warning:       #F0A857;
+  --color-error:         #F0685C;
+
+}
+
+@theme inline {
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-elevated: var(--color-elevated);
+  --color-elevated-2: var(--color-elevated-2);
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-faint: var(--color-text-faint);
+
+  --color-primary: var(--color-primary);
+  --color-primary-dim: var(--color-primary-dim);
+  --color-evidence: var(--color-evidence);
+  --color-evidence-dim: var(--color-evidence-dim);
+
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+
+  /* NOTE: Space Grotesk / Inter / JetBrains Mono via next/font/google require
+     network access to fonts.googleapis.com, unavailable in this sandbox.
+     Falls back to system stacks with a similar character. Re-enable
+     next/font/google (see layout.tsx history) once running with network
+     access, or self-host the .woff2 files under public/fonts. */
+  --font-display: "Space Grotesk", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle grain/gradient depth for the app background */
+.app-backdrop {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(240, 168, 87, 0.06), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(79, 209, 197, 0.05), transparent),
+    var(--color-bg);
+}
+
+.glass {
+  background: rgba(27, 33, 44, 0.55);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border-subtle);
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-elevated-2); border-radius: 8px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-border); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}

@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+!.env.example
+data/raw/*
+data/derived/*
+data/*.sqlite3
+data/*.sqlite3-*
+data/index/*
+data/synthetic_corpus/*
+!data/raw/.gitkeep
+!data/derived/.gitkeep
+!data/index/.gitkeep

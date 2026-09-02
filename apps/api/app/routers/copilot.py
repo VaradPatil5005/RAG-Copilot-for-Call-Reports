@@ -36,6 +36,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import db
+from app.routing import query_router
 from app.services import agentic_retrieval, audit, auth, citation_validator, generation, graph_store, pii, search_index, temporal
 
 logger = logging.getLogger("copilot.api")
@@ -222,6 +223,17 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     intent = classify_intent(req.query)
     top_k = _TOP_K_BY_INTENT.get(intent, 10)
 
+    # feature/decision-intelligence-layer, Phase A (additive): the new
+    # Query Router runs alongside -- never in place of -- the existing
+    # `classify_intent` above. It never affects `top_k` or removes any
+    # existing retrieval path; wrapped so a failure here can never break
+    # the existing chat flow. See app/routing/query_router.py.
+    route_decision: query_router.QueryRouteDecision | None = None
+    try:
+        route_decision = query_router.classify_query(req.query)
+    except Exception:  # noqa: BLE001
+        logger.exception("query router classification failed (non-fatal)")
+
     yield _sse({"type": "status", "stage": "retrieving_evidence"})
 
     filters = _to_filters(req, identity)
@@ -241,6 +253,29 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
         yield _sse({"type": "error", "message": f"Retrieval failed: {exc}"})
         return
 
+    # feature/decision-intelligence-layer, Phase A (additive): if the
+    # router flags this as a graph-relationship question that the
+    # existing `classify_intent` heuristic didn't already route through
+    # GraphRAG, ADD (never replace/reorder) the same graph evidence the
+    # existing `cross_document_graph` intent path already fetches, via
+    # the same ACL-enforcing chokepoint (`_graph_evidence`). Any
+    # existing query that already scores `cross_document_graph` is
+    # unaffected -- this only ever adds evidence for queries the
+    # existing classifier previously routed with zero graph evidence.
+    if (
+        route_decision is not None
+        and route_decision.category == "graph_relationship"
+        and intent != "cross_document_graph"
+    ):
+        try:
+            router_graph_evidence = _graph_evidence(filters)
+            existing_ids = {c["chunk_id"] for c in evidence}
+            router_merged = [c for c in router_graph_evidence if c["chunk_id"] not in existing_ids]
+            graph_evidence_count += len(router_merged)
+            evidence = evidence + router_merged
+        except Exception:  # noqa: BLE001
+            logger.exception("router-triggered graph evidence fetch failed (non-fatal)")
+
     temporal_analysis = temporal.analyze(evidence)
 
     yield _sse(
@@ -255,6 +290,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
                 "query_rewrite_expansions": agentic_result.rewrite.expansions if agentic_result.rewrite else [],
                 "contradictions_detected": len(temporal_analysis.contradictions),
                 "graph_evidence_count": graph_evidence_count,
+                "query_router": route_decision.to_dict() if route_decision else None,
             },
         }
     )
@@ -300,6 +336,21 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     except Exception:  # noqa: BLE001
         logger.exception("failed to persist chat trace %s", trace_id)
 
+    # feature/decision-intelligence-layer, Phase A (additive): log the
+    # router decision keyed by trace_id, in its own new table (see
+    # app/db.py) -- never touches the chat_traces row above.
+    if route_decision is not None:
+        try:
+            query_router.persist_decision(
+                trace_id=trace_id,
+                conversation_id=req.conversation_id,
+                tenant_id=identity.tenant_id,
+                query=req.query,
+                decision=route_decision,
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("failed to persist query router decision for trace %s", trace_id)
+
     audit.record(
         endpoint="/chat",
         identity=identity,
@@ -315,6 +366,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
             "trace_id": trace_id,
             "conversation_id": req.conversation_id,
             "intent": intent,
+            "query_router": route_decision.to_dict() if route_decision else None,
             "answer": final_answer,
             "evidence": [_evidence_out(c) for c in evidence],
             "citation_validation": validation_summary,

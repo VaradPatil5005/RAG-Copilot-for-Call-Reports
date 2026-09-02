@@ -318,6 +318,29 @@ CREATE TABLE IF NOT EXISTS evaluation_runs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_evaluation_runs_created ON evaluation_runs(created_at);
+
+-- Phase A (feature/decision-intelligence-layer, additive): one row per
+-- Query Router classification. Deliberately a *separate* table rather
+-- than new columns on chat_traces -- joins cleanly on trace_id for
+-- Phase C observability without touching chat_traces' existing column
+-- semantics or requiring an ALTER TABLE migration on existing DBs. See
+-- app/routing/query_router.py.
+CREATE TABLE IF NOT EXISTS query_router_decisions (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id         TEXT,
+    conversation_id  TEXT,
+    tenant_id        TEXT,
+    query            TEXT NOT NULL,
+    category         TEXT NOT NULL,   -- lookup | comparison | trend | multi_hop | graph_relationship
+    method           TEXT NOT NULL,   -- heuristic | llm_fallback | heuristic_default
+    confidence       TEXT NOT NULL,   -- high | medium | low
+    signals_json     TEXT,            -- JSON: heuristic scores + matched terms
+    suggested_paths  TEXT,            -- JSON array of existing retrieval path names
+    created_at       TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_query_router_trace ON query_router_decisions(trace_id);
+CREATE INDEX IF NOT EXISTS idx_query_router_created ON query_router_decisions(created_at);
 """
 
 # tenant_id + sha live together for dedupe lookups; SQLite has no composite

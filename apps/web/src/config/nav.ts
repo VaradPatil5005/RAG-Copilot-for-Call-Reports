@@ -6,6 +6,8 @@ import {
   Share2,
   ClipboardCheck,
   ShieldCheck,
+  Brain,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,5 +60,19 @@ export const NAV_ITEMS: NavItem[] = [
     href: "/admin",
     icon: ShieldCheck,
     description: "Security, health & observability",
+  },
+  // feature/decision-intelligence-layer, Phase B/C (additive): appended,
+  // not replacing or reordering any entry above.
+  {
+    label: "Decision Intelligence",
+    href: "/decision-eval",
+    icon: Brain,
+    description: "Policy-block accuracy & evaluation summary",
+  },
+  {
+    label: "Diagnostics",
+    href: "/observability",
+    icon: Gauge,
+    description: "Stage latency, per-query cost & failure log",
   },
 ];

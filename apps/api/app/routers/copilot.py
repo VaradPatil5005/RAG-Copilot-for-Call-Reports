@@ -36,6 +36,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import db
+from app.observability import instrumentation
 from app.routing import query_router
 from app.services import agentic_retrieval, audit, auth, citation_validator, generation, graph_store, pii, search_index, temporal
 
@@ -218,6 +219,20 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     start = time.monotonic()
     trace_id = f"trace-{uuid.uuid4().hex[:12]}"
 
+    # feature/decision-intelligence-layer, Phase C (additive): per-stage
+    # elapsed time, persisted alongside (never in place of) the existing
+    # single end-to-end `latency_ms` chat_traces already records. Purely
+    # a local bookkeeping list until persisted near the end of this
+    # function; adds no behavior to the stages themselves.
+    _stage_clock = start
+    stage_timings: list[tuple[str, int]] = []
+
+    def _mark_stage(stage_name: str) -> None:
+        nonlocal _stage_clock
+        now = time.monotonic()
+        stage_timings.append((stage_name, int((now - _stage_clock) * 1000)))
+        _stage_clock = now
+
     yield _sse({"type": "status", "stage": "understanding_query"})
 
     intent = classify_intent(req.query)
@@ -234,6 +249,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     except Exception:  # noqa: BLE001
         logger.exception("query router classification failed (non-fatal)")
 
+    _mark_stage("understanding_query")
     yield _sse({"type": "status", "stage": "retrieving_evidence"})
 
     filters = _to_filters(req, identity)
@@ -250,6 +266,20 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
             evidence = evidence + merged
     except Exception as exc:  # noqa: BLE001
         logger.exception("retrieval failed")
+        # feature/decision-intelligence-layer, Phase C (additive): persist
+        # to the new failure log -- the SSE error event below still fires
+        # exactly as before; this only adds a queryable record of it.
+        try:
+            instrumentation.record_failure(
+                trace_id=trace_id,
+                conversation_id=req.conversation_id,
+                tenant_id=identity.tenant_id,
+                stage="retrieving_evidence",
+                query=req.query,
+                error_message=str(exc),
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("failed to persist chat trace failure for %s", trace_id)
         yield _sse({"type": "error", "message": f"Retrieval failed: {exc}"})
         return
 
@@ -278,6 +308,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
 
     temporal_analysis = temporal.analyze(evidence)
 
+    _mark_stage("retrieving_evidence")
     yield _sse(
         {
             "type": "status",
@@ -295,15 +326,28 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
         }
     )
 
+    _mark_stage("reasoning")
     yield _sse({"type": "status", "stage": "generating"})
 
     try:
         gen_result = generation.generate_structured_answer(req.query, evidence)
     except Exception as exc:  # noqa: BLE001
         logger.exception("generation failed")
+        try:
+            instrumentation.record_failure(
+                trace_id=trace_id,
+                conversation_id=req.conversation_id,
+                tenant_id=identity.tenant_id,
+                stage="generating",
+                query=req.query,
+                error_message=str(exc),
+            )
+        except Exception:  # noqa: BLE001
+            logger.exception("failed to persist chat trace failure for %s", trace_id)
         yield _sse({"type": "error", "message": f"Generation failed: {exc}"})
         return
 
+    _mark_stage("generating")
     yield _sse({"type": "status", "stage": "validating"})
 
     validation = citation_validator.validate(gen_result.raw_json, evidence)
@@ -315,6 +359,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     for chunk in _word_chunks(answer_text):
         yield _sse({"type": "token", "text": chunk + " "})
 
+    _mark_stage("validating")
     latency_ms = int((time.monotonic() - start) * 1000)
 
     try:
@@ -350,6 +395,20 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
             )
         except Exception:  # noqa: BLE001
             logger.exception("failed to persist query router decision for trace %s", trace_id)
+
+    # feature/decision-intelligence-layer, Phase C (additive): persist the
+    # per-stage timings collected by `_mark_stage` above, keyed by
+    # trace_id, in their own new table -- never touches the chat_traces
+    # row above.
+    try:
+        instrumentation.record_stage_timings(
+            trace_id=trace_id,
+            conversation_id=req.conversation_id,
+            tenant_id=identity.tenant_id,
+            timings=stage_timings,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("failed to persist stage timings for trace %s", trace_id)
 
     audit.record(
         endpoint="/chat",

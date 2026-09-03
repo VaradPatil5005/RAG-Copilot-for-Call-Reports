@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
-from app.routers import auth, copilot, documents, evaluation, graph, retrieval, system
+from app.routers import auth, copilot, decision_eval, documents, evaluation, graph, observability, retrieval, system
 from app.services.pipeline import IngestionQueue
 
 
@@ -65,6 +65,12 @@ app.include_router(retrieval.router)
 app.include_router(copilot.router)
 app.include_router(evaluation.router)
 app.include_router(graph.router)
+# feature/decision-intelligence-layer, Phase B (additive): registered
+# alongside the existing routers above, never replacing one.
+app.include_router(decision_eval.router)
+# feature/decision-intelligence-layer, Phase C (additive): registered
+# alongside the existing routers above, never replacing one.
+app.include_router(observability.router)
 
 
 @app.get("/")

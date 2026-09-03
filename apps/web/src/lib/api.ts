@@ -597,3 +597,143 @@ export async function runFullEvaluation(params?: {
   });
   return jsonOrThrow<EvaluationReport>(res);
 }
+
+// --------------------------------------------------------------------------
+// feature/decision-intelligence-layer, Phase B (additive) -- Decision
+// Intelligence dashboard: policy-block accuracy (net-new metric) plus a
+// read-only summary that surfaces citation precision / faithfulness /
+// abstention accuracy / unsupported-claim rate from the existing
+// evaluation harness's persisted /evaluation/run-full report alongside it.
+// --------------------------------------------------------------------------
+
+export interface PolicyGoldCase {
+  case_id: string;
+  question: string;
+  principals: string[];
+  target_customer: string;
+  expected_blocked: boolean;
+}
+
+export async function getPolicyGoldSet(): Promise<{ n_cases: number; cases: PolicyGoldCase[] }> {
+  const res = await fetch(`${API_BASE}/decision-eval/policy-gold-set`, { cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+export interface PolicyCaseResult {
+  case_id: string;
+  question: string;
+  principals: string[];
+  target_customer: string;
+  expected_blocked: boolean;
+  actual_blocked: boolean;
+  correct: boolean;
+}
+
+export interface PolicyBlockReport {
+  available?: boolean;
+  message?: string;
+  run_id?: string;
+  created_at?: string;
+  n_cases: number;
+  policy_block_accuracy: number;
+  false_allow_count: number;
+  false_allow_cases: string[];
+  false_block_count: number;
+  false_block_cases: string[];
+  results: PolicyCaseResult[];
+  caveat: string;
+}
+
+/** POST /decision-eval/run-policy-block -- runs the net-new policy-block-
+ * accuracy metric against the real ACL-enforced retrieval path and
+ * persists the report. */
+export async function runPolicyBlockEval(params?: { tenant_id?: string; top_k?: number }): Promise<PolicyBlockReport> {
+  const res = await fetch(`${API_BASE}/decision-eval/run-policy-block`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tenant_id: params?.tenant_id ?? "tenant-a", top_k: params?.top_k ?? 10 }),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function getLatestPolicyBlockEval(): Promise<PolicyBlockReport> {
+  const res = await fetch(`${API_BASE}/decision-eval/latest-policy-block`, { cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+export interface DecisionEvalSummary {
+  quality_available: boolean;
+  quality: {
+    run_id: string;
+    created_at: string;
+    n_queries: number;
+    citation_precision: number | null;
+    mean_faithfulness: number | null;
+    unsupported_claim_rate: number | null;
+    abstention_accuracy: number | null;
+  } | null;
+  policy_available: boolean;
+  policy: {
+    run_id: string;
+    created_at: string;
+    n_cases: number;
+    policy_block_accuracy: number;
+    false_allow_count: number;
+    false_block_count: number;
+  } | null;
+  caveat: string;
+}
+
+export async function getDecisionEvalSummary(): Promise<DecisionEvalSummary> {
+  const res = await fetch(`${API_BASE}/decision-eval/summary`, { cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+// --------------------------------------------------------------------------
+// feature/decision-intelligence-layer, Phase C (additive) -- Observability
+// dashboard: retrieval-stage latency breakdown, per-query cost, and a
+// failure/error log are all genuinely new; the fallback-provider rate /
+// JSON-retry rate / abstention rate / latency percentiles inside
+// `chat_metrics` below are the EXISTING `/system/metrics` payload, only
+// being displayed again here, not recomputed.
+// --------------------------------------------------------------------------
+
+export interface StageLatencyBreakdown {
+  n_rows: number;
+  by_stage: Record<string, { n: number; p50: number; p95: number; p99: number; mean_ms: number }>;
+  message?: string;
+}
+
+export interface CostPerQueryEntry {
+  trace_id: string;
+  query_preview: string;
+  model_name: string;
+  total_tokens: number;
+  estimated_cost_usd: number | null;
+  cost_basis: string;
+  tenant_id: string | null;
+  created_at: string;
+}
+
+export interface FailureLogEntry {
+  id: number;
+  trace_id: string | null;
+  conversation_id: string | null;
+  tenant_id: string | null;
+  stage: string;
+  query: string | null;
+  error_message: string;
+  created_at: string;
+}
+
+export interface ObservabilityDashboard {
+  chat_metrics: Record<string, unknown>;
+  stage_latency: StageLatencyBreakdown;
+  cost_per_query: { n_queries: number; queries: CostPerQueryEntry[] };
+  failures: { n_failures: number; failures: FailureLogEntry[] };
+}
+
+export async function getObservabilityDashboard(): Promise<ObservabilityDashboard> {
+  const res = await fetch(`${API_BASE}/observability/dashboard`, { cache: "no-store" });
+  return jsonOrThrow(res);
+}

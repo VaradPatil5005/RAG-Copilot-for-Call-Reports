@@ -1,0 +1,11 @@
+--- a/README.md	2026-09-03 06:45:14.831157033 +0000
++++ b/README.md	2026-09-03 06:45:14.832627193 +0000
+@@ -68,6 +68,8 @@
+ 
+ **Provider abstraction:** embeddings, generation, and vision each sit behind a reachability-gated interface. The system picks the first real, reachable provider (Gemini → Groq → Ollama for generation); if none is reachable, a deterministic fallback takes over automatically, and `/system/health` reports which mode is active. The request/response contract never changes based on which mode is running.
+ 
++**Decision-intelligence-layer additions (feature/decision-intelligence-layer branch):** a Query Router that classifies each question by shape (lookup/comparison/trend/multi-hop/graph-relationship) and logs the decision per-trace; a policy-block-accuracy benchmark metric plus an unsupported-claim-rate aggregate added to the evaluation harness; and an observability dashboard adding retrieval-stage latency breakdown, per-query cost, and a failure log on top of the existing system metrics. All additive — no existing route, table, or SSE event changed. See `docs/decision-intelligence-copilot.md` for the full writeup and architecture diagram.
++
+ ---
+ 
+ ## Key Features

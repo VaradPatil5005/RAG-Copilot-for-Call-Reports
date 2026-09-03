@@ -40,6 +40,16 @@ class FullQueryResult:
     faithfulness: float
     latency_ms: float
     answer_preview: str
+    # feature/decision-intelligence-layer, Phase B (additive): the raw
+    # existence/support-check counts behind `faithfulness` -- already
+    # computed by `citation_validator.validate()` on every call this loop
+    # already makes (see `validation.summary`), just not previously kept
+    # per-query. Defaults preserve the dataclass's existing positional/
+    # keyword construction for any external caller that only passes the
+    # original fields.
+    existence_check_failed: int = 0
+    support_check_failed: int = 0
+    total_citations_checked: int = 0
 
 
 def _hit_and_rank(retrieved: list[dict[str, Any]], gold_customers: list[str]) -> tuple[bool, float]:
@@ -101,6 +111,12 @@ def run_full_benchmark(
                 faithfulness=faithfulness,
                 latency_ms=round(latency_ms, 1),
                 answer_preview=(answer_json.get("answer") or "")[:200],
+                # feature/decision-intelligence-layer, Phase B (additive):
+                # same `validation.summary` counts `citation_validator`
+                # already produces on this exact call, one line each.
+                existence_check_failed=validation.summary["existence_check_failed"],
+                support_check_failed=validation.summary["support_check_failed"],
+                total_citations_checked=validation.summary["total"],
             )
         )
 
@@ -119,6 +135,24 @@ def _summarize(results: list[FullQueryResult]) -> dict:
         abst_correct = sum(1 for r in rs if r.abstention_correct)
         ci_lo, ci_hi = quality_metrics.wilson_confidence_interval(hits, n_r)
         latencies = [r.latency_ms for r in rs]
+        # feature/decision-intelligence-layer, Phase B (additive):
+        # unsupported_claim_rate over this category's slice of the gold
+        # set, using the *same* stripped/total definition already
+        # established in routers/system.py's `metrics()` (live-traffic
+        # chat_traces aggregate) -- this is the same metric computed over
+        # the controlled gold-set benchmark instead of live traffic, not
+        # a second/different definition of "unsupported claim".
+        total_cites = sum(r.total_citations_checked for r in rs)
+        unsupported = sum(r.support_check_failed + r.existence_check_failed for r in rs)
+        # feature/decision-intelligence-layer, Phase B (additive):
+        # `citation_precision`/`citation_recall` were already computed
+        # per-query above (via `quality_metrics.score_citation_precision_recall`,
+        # unchanged) but never aggregated into this summary before --
+        # only added here as an average, over queries where it's defined
+        # (None for unanswerable-by-design queries with no gold
+        # customers, per that function's own contract).
+        precisions = [r.citation_precision for r in rs if r.citation_precision is not None]
+        recalls = [r.citation_recall for r in rs if r.citation_recall is not None]
         return {
             "n": n_r,
             "hit_rate": round(hits / n_r, 4) if n_r else 0.0,
@@ -127,6 +161,9 @@ def _summarize(results: list[FullQueryResult]) -> dict:
             "abstention_accuracy": round(abst_correct / n_r, 4) if n_r else 0.0,
             "mean_semantic_relevancy": round(sum(r.semantic_relevancy for r in rs) / n_r, 3) if n_r else 0.0,
             "mean_faithfulness": round(sum(r.faithfulness for r in rs) / n_r, 3) if n_r else 0.0,
+            "mean_citation_precision": round(sum(precisions) / len(precisions), 4) if precisions else None,
+            "mean_citation_recall": round(sum(recalls) / len(recalls), 4) if recalls else None,
+            "unsupported_claim_rate": round(unsupported / total_cites, 4) if total_cites else None,
             "latency_ms": quality_metrics.percentiles(latencies),
         }
 
@@ -135,6 +172,14 @@ def _summarize(results: list[FullQueryResult]) -> dict:
     overall_hits = sum(1 for r in results if r.hit)
     overall_ci = quality_metrics.wilson_confidence_interval(overall_hits, n)
     all_latencies = [r.latency_ms for r in results]
+
+    # feature/decision-intelligence-layer, Phase B (additive): same
+    # stripped/total definition as category_block() above, over the
+    # whole gold set.
+    overall_total_cites = sum(r.total_citations_checked for r in results)
+    overall_unsupported = sum(r.support_check_failed + r.existence_check_failed for r in results)
+    overall_precisions = [r.citation_precision for r in results if r.citation_precision is not None]
+    overall_recalls = [r.citation_recall for r in results if r.citation_recall is not None]
 
     failures = [
         {
@@ -165,6 +210,9 @@ def _summarize(results: list[FullQueryResult]) -> dict:
             "abstention_accuracy": round(sum(1 for r in results if r.abstention_correct) / n, 4) if n else 0.0,
             "mean_semantic_relevancy": round(sum(r.semantic_relevancy for r in results) / n, 3) if n else 0.0,
             "mean_faithfulness": round(sum(r.faithfulness for r in results) / n, 3) if n else 0.0,
+            "mean_citation_precision": round(sum(overall_precisions) / len(overall_precisions), 4) if overall_precisions else None,
+            "mean_citation_recall": round(sum(overall_recalls) / len(overall_recalls), 4) if overall_recalls else None,
+            "unsupported_claim_rate": round(overall_unsupported / overall_total_cites, 4) if overall_total_cites else None,
             "latency_ms": quality_metrics.percentiles(all_latencies),
         },
         "by_category": by_category_summary,

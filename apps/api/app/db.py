@@ -341,6 +341,60 @@ CREATE TABLE IF NOT EXISTS query_router_decisions (
 
 CREATE INDEX IF NOT EXISTS idx_query_router_trace ON query_router_decisions(trace_id);
 CREATE INDEX IF NOT EXISTS idx_query_router_created ON query_router_decisions(created_at);
+
+-- Phase B (feature/decision-intelligence-layer, additive): persisted
+-- policy-block-accuracy runs, mirroring the existing `evaluation_runs`
+-- table's own persist-so-the-dashboard-can-read-without-recomputing
+-- pattern -- kept as its own table rather than reusing `evaluation_runs`
+-- so this net-new metric's schema can evolve independently.
+CREATE TABLE IF NOT EXISTS decision_eval_runs (
+    run_id       TEXT PRIMARY KEY,
+    kind         TEXT NOT NULL,   -- currently only 'policy_block'
+    n_cases      INTEGER,
+    report_json  TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_decision_eval_runs_created ON decision_eval_runs(created_at);
+
+-- Phase C (feature/decision-intelligence-layer, additive): per-stage
+-- timing breakdown for each /chat call, keyed by trace_id -- a new
+-- table rather than new columns on chat_traces (chat_traces already
+-- carries only a single end-to-end `latency_ms`; this is a finer-grained
+-- view alongside it, not a replacement).
+CREATE TABLE IF NOT EXISTS chat_trace_stage_timings (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id     TEXT NOT NULL,
+    conversation_id TEXT,
+    tenant_id    TEXT,
+    stage        TEXT NOT NULL,   -- understanding_query | retrieving_evidence | reasoning | generating | validating
+    elapsed_ms   INTEGER NOT NULL,
+    created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stage_timings_trace ON chat_trace_stage_timings(trace_id);
+CREATE INDEX IF NOT EXISTS idx_stage_timings_stage ON chat_trace_stage_timings(stage);
+CREATE INDEX IF NOT EXISTS idx_stage_timings_created ON chat_trace_stage_timings(created_at);
+
+-- Phase C (feature/decision-intelligence-layer, additive): a persisted
+-- failure/error log. Today, a /chat call that fails mid-stream (retrieval
+-- or generation raising) returns an SSE error event but nothing is ever
+-- written to chat_traces for it (that INSERT only happens on the success
+-- path) -- there has never been a queryable record of failed calls. This
+-- table exists purely to hold that; nothing about the existing success-
+-- path persistence in chat_traces changes.
+CREATE TABLE IF NOT EXISTS chat_trace_errors (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id     TEXT,
+    conversation_id TEXT,
+    tenant_id    TEXT,
+    stage        TEXT NOT NULL,   -- which stage raised
+    query        TEXT,
+    error_message TEXT NOT NULL,
+    created_at   TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_trace_errors_created ON chat_trace_errors(created_at);
 """
 
 # tenant_id + sha live together for dedupe lookups; SQLite has no composite

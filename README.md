@@ -192,7 +192,7 @@ Rather than executing a single, monolithic, fragile prompt, the platform orchest
 
 ### 2.4 Hybrid Retrieval & Reciprocal Rank Fusion (RRF)
 
-Dense vector search alone struggles with exact alphanumeric identifiers (e.g., loan IDs, contract numbers, account codes), while pure BM25 lexical search misses conceptual semantic matches. Aethor OS unifies both:
+Dense vector search alone struggles with exact alphanumeric identifiers (e.g., loan IDs, contract numbers, account codes), while pure BM25 lexical search misses conceptual semantic matches. The Decision Intelligence Engine unifies both:
 
 1. **Dense Vector Search:** Fast cosine similarity over embeddings using `hnswlib` with fine-tuned parameters (M=8, efConstruction=800, efSearch=500).
 2. **Lexical Sparse Search:** SQLite FTS5 index computing BM25 relevance scores over sanitized text tokens.
@@ -209,7 +209,7 @@ Dense vector search alone struggles with exact alphanumeric identifiers (e.g., l
 
 In enterprise settings, post-generation redaction ('filtering after generation') is a fatal security flaw because unauthorized data has already leaked into the LLM's attention context and prompt memory.
 
-Aethor OS implements **Pre-Retrieval SQL ACL Enforcement**:
+The platform implements **Pre-Retrieval SQL ACL Enforcement**:
 - Every document version is tagged with access control lists (Allowed Roles, Allowed Departments, Clearance Level).
 - When a user submits a query, their verified JWT claims are translated directly into a **parameterized SQL WHERE clause**.
 - Unauthorized documents are mathematically excluded at the database index level before vector calculation or context construction.
@@ -218,7 +218,7 @@ Aethor OS implements **Pre-Retrieval SQL ACL Enforcement**:
 
 ### 2.6 Two-Stage Citation Validation & Hallucination Guardrail
 
-Unlike standard RAG systems that display LLM-generated citations at face value, Aethor OS subjects every citation to a rigorous **Two-Stage Verification Gate**:
+Unlike standard RAG systems that display LLM-generated citations at face value, Enterprise RAG Copilot subjects every citation to a rigorous **Two-Stage Verification Gate**:
 
 ```
 Model Generates Answer with Citation [Chunk-XYZ, Page 12]
@@ -259,7 +259,7 @@ Gemini API ────► Groq API ────► Local Ollama ────►
 
 ## Research References
 
-Aethor OS synthesizes foundational paradigms and empirical breakthroughs from the following academic and industrial research literature:
+Enterprise RAG Copilot synthesizes foundational paradigms and empirical breakthroughs from the following academic and industrial research literature:
 
 1. **Lewis, P., Perez, E., Piktus, A., et al. (2020).**  
    *Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks.* Advances in Neural Information Processing Systems (NeurIPS 2020).  

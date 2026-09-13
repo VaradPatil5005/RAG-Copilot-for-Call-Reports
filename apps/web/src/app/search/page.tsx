@@ -79,39 +79,39 @@ export default function SearchPage() {
             e.preventDefault();
             runSearch(query);
           }}
-          className="flex items-center gap-2"
+          className="flex items-center gap-3"
         >
           <div className="relative flex-1">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint" />
+            <SearchIcon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-faint" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="e.g. What risks were raised for Contoso?"
               aria-label="Search query"
               data-testid="search-input"
-              className="w-full rounded-lg border border-border-subtle bg-elevated/60 py-2.5 pl-9 pr-3 text-[13px] text-text placeholder:text-text-faint outline-none focus:border-primary-dim"
+              className="w-full rounded-xl border border-white/10 bg-surface/80 backdrop-blur-xl py-3 pl-10 pr-4 text-[13px] text-text placeholder:text-text-faint outline-none focus:border-evidence/50 focus:shadow-[0_0_20px_rgba(79,209,197,0.15)] transition-all"
             />
           </div>
           <button
             type="button"
             onClick={() => setShowFilters((v) => !v)}
             className={cn(
-              "flex items-center gap-1.5 rounded-lg border px-3 py-2.5 text-[12px] font-medium transition-colors",
+              "flex items-center gap-2 rounded-xl border px-4 py-3 text-[12px] font-medium transition-all duration-200",
               showFilters || activeFilterCount > 0
-                ? "border-primary-dim/60 bg-primary-dim/20 text-primary"
-                : "border-border-subtle text-text-muted hover:bg-elevated"
+                ? "border-primary/50 bg-primary/15 text-primary shadow-[0_0_12px_rgba(240,168,87,0.2)]"
+                : "border-white/10 bg-surface/70 text-text-muted hover:bg-elevated hover:text-text"
             )}
           >
             <SlidersHorizontal className="h-3.5 w-3.5" />
             Filters
             {activeFilterCount > 0 && (
-              <span className="rounded-full bg-primary/20 px-1.5 text-[10px]">{activeFilterCount}</span>
+              <span className="rounded-full bg-primary/25 px-1.5 font-mono text-[10px] font-bold">{activeFilterCount}</span>
             )}
           </button>
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[12px] font-medium text-bg transition-opacity disabled:opacity-40"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-amber-500 hover:brightness-110 px-5 py-3 text-[12px] font-bold text-bg shadow-[0_0_15px_rgba(240,168,87,0.25)] transition-all disabled:opacity-40"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {loading ? "Searching…" : "Search"}
@@ -228,29 +228,29 @@ function ResultCard({ result }: { result: SearchResultItem }) {
   return (
     <Link
       href={`/documents?doc=${encodeURIComponent(result.document_id)}`}
-      className="group block rounded-lg border border-border-subtle bg-surface/60 p-4 transition-colors hover:border-border hover:bg-elevated/40"
+      className="group block rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all duration-300 hover:border-evidence/40 hover:bg-surface/90 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(79,209,197,0.08)] hover:-translate-y-0.5"
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-elevated-2 text-text-faint">
-            <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-evidence/10 border border-evidence/25 text-evidence shadow-[0_0_10px_rgba(79,209,197,0.2)]">
+            <Icon className="h-4 w-4" strokeWidth={1.75} />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-[12.5px] font-medium text-text">
+            <p className="truncate text-[13px] font-semibold text-text group-hover:text-white transition-colors">
               {result.customer_name || result.document_id}
               {result.meeting_date && (
-                <span className="ml-1.5 font-normal text-text-faint">· {result.meeting_date}</span>
+                <span className="ml-2 font-mono text-[11px] text-text-faint font-normal">· {result.meeting_date}</span>
               )}
             </p>
-            <p className="truncate text-[11px] text-text-faint">
-              {result.section_path.length > 0 ? result.section_path.join(" > ") : result.document_id}
+            <p className="truncate font-mono text-[11px] text-text-faint mt-0.5">
+              {result.section_path.length > 0 ? result.section_path.join(" › ") : result.document_id}
               {result.page_number != null && ` · p.${result.page_number}`}
             </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <ScorePill label="relevance" value={relevance} />
-          <ChevronRight className="h-3.5 w-3.5 text-text-faint transition-transform group-hover:translate-x-0.5" />
+          <ChevronRight className="h-4 w-4 text-text-faint transition-transform group-hover:translate-x-1 group-hover:text-evidence" />
         </div>
       </div>
 

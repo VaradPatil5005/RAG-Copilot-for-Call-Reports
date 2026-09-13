@@ -57,77 +57,91 @@ export function PipelineStatusPanel() {
   ).length;
 
   return (
-    <div className="lg:col-span-2 rounded-xl border border-border-subtle bg-surface/60 p-5">
+    <div className="lg:col-span-2 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] hover:border-white/14 transition-all">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-text-faint">
-            Ingestion pipeline
+          <div className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
+            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-text-faint">
+              SYS.PIPELINE // INGESTION MESH
+            </p>
+          </div>
+          <p className="mt-1 font-display text-base font-bold text-text">
+            Quantum Document Processing Pipeline
           </p>
-          <p className="mt-1 font-display text-sm font-medium text-text">Document processing status</p>
         </div>
         {documents.length > 0 && (
-          <span className="text-[11px] text-text-faint">{documents.length} documents</span>
+          <span className="font-mono text-[11px] rounded-full border border-evidence/25 bg-evidence/10 px-3 py-1 text-evidence font-medium shadow-[0_0_10px_rgba(79,209,197,0.15)]">
+            {documents.length} ingested
+          </span>
         )}
       </div>
 
-      <div className="mt-6 flex items-center gap-1 overflow-x-auto pb-2">
+      <div className="mt-6 flex items-center gap-1 overflow-x-auto pb-3">
         {PIPELINE_STAGES.map((stage, i) => {
           const count = countAtOrPast(i);
           const active = count > 0;
           return (
             <div key={stage.key} className="flex items-center shrink-0">
-              <div className="flex flex-col items-center gap-2 min-w-[92px]">
+              <div className="flex flex-col items-center gap-2 min-w-[96px]">
                 <div
                   className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full border text-[10px] font-mono",
+                    "flex h-9 w-9 items-center justify-center rounded-xl border text-[11px] font-mono font-bold transition-all duration-300",
                     active
-                      ? "border-evidence-dim/60 bg-evidence-dim/20 text-evidence"
-                      : "border-border-subtle bg-elevated text-text-faint"
+                      ? "border-evidence/50 bg-evidence/15 text-evidence shadow-[0_0_15px_rgba(79,209,197,0.3)]"
+                      : "border-white/8 bg-elevated-2/60 text-text-faint"
                   )}
                 >
                   {active ? count : i + 1}
                 </div>
                 <span
                   className={cn(
-                    "text-[10px] text-center leading-tight",
-                    active ? "text-text-muted" : "text-text-faint"
+                    "text-[10px] text-center leading-tight font-medium max-w-[85px]",
+                    active ? "text-text" : "text-text-faint"
                   )}
                 >
                   {stage.label}
                 </span>
               </div>
-              <div className="h-px w-6 bg-border-subtle shrink-0 mb-5" />
+              <div
+                className={cn(
+                  "h-0.5 w-5 shrink-0 mb-5 transition-colors",
+                  active ? "bg-evidence/40" : "bg-white/5"
+                )}
+              />
             </div>
           );
         })}
         {FUTURE_STAGES.map((label) => (
           <div key={label} className="flex items-center shrink-0">
-            <div className="flex flex-col items-center gap-2 min-w-[92px]">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-border-subtle text-text-faint">
-                <span className="text-[9px]">P3</span>
+            <div className="flex flex-col items-center gap-2 min-w-[96px]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-white/10 text-text-faint/70 bg-elevated/30">
+                <span className="text-[10px] font-mono font-bold">P3</span>
               </div>
-              <span className="text-[10px] text-center leading-tight text-text-faint/70">{label}</span>
+              <span className="text-[10px] text-center leading-tight text-text-faint/60 max-w-[85px]">{label}</span>
             </div>
           </div>
         ))}
       </div>
 
       {loaded && documents.length === 0 && (
-        <div className="mt-6 flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border-subtle py-10 text-center">
-          <FileStack className="h-6 w-6 text-text-faint" strokeWidth={1.5} />
-          <p className="text-[13px] text-text-muted">No documents ingested yet</p>
-          <p className="text-[12px] text-text-faint max-w-xs">
-            Upload a call report in Documents to see it move through validation, extraction,
-            chunking, embedding, and indexing in real time.
+        <div className="mt-6 flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-white/10 bg-elevated/20 py-10 text-center">
+          <div className="h-10 w-10 rounded-xl bg-elevated-2/80 flex items-center justify-center text-text-faint border border-white/5">
+            <FileStack className="h-5 w-5 text-evidence/70" strokeWidth={1.5} />
+          </div>
+          <p className="text-[13px] font-medium text-text-muted">No documents ingested in this tenant</p>
+          <p className="text-[12px] text-text-faint max-w-sm leading-relaxed">
+            Upload a call report in Documents to activate the real-time extraction, layout normalization, and indexing pipeline.
           </p>
         </div>
       )}
 
       {failedCount > 0 && (
-        <div className="mt-4 flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[11px] text-warning">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          {failedCount} document{failedCount > 1 ? "s" : ""} need attention (failed, quarantined, or
-          dead-lettered) — see Documents.
+        <div className="mt-4 flex items-center gap-2.5 rounded-xl border border-warning/30 bg-warning/10 px-4 py-2.5 text-[12px] text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span>
+            {failedCount} document{failedCount > 1 ? "s" : ""} flagged for inspection (quarantined or retry queue).
+          </span>
         </div>
       )}
     </div>

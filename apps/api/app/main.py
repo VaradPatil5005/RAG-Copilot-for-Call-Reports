@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import db
-from app.routers import auth, copilot, decision_eval, documents, evaluation, graph, observability, retrieval, system
+from app.routers import auth, copilot, decision_eval, documents, evaluation, graph, learning, observability, retrieval, system
 from app.services.pipeline import IngestionQueue
 
 
@@ -71,6 +71,8 @@ app.include_router(decision_eval.router)
 # feature/decision-intelligence-layer, Phase C (additive): registered
 # alongside the existing routers above, never replacing one.
 app.include_router(observability.router)
+# Phase E (Self-Learning Copilot, additive): registered alongside existing routers
+app.include_router(learning.router)
 
 
 @app.get("/")

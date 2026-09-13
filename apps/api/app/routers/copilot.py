@@ -52,13 +52,122 @@ class ChatFiltersIn(BaseModel):
     document_id: str | None = None
 
 
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+    evidence_chunk_ids: list[str] = Field(default_factory=list)
+
+
 class ChatRequest(BaseModel):
     query: str
     conversation_id: str | None = None
     filters: ChatFiltersIn | None = None
+    messages: list[ChatMessage] | None = None
     # Phase 6.3: tenant_id/principals no longer accepted here -- both come
     # exclusively from the verified `identity` (see `auth.require_identity`).
     # See retrieval.py's SearchRequest docstring for the same change.
+
+
+_FOLLOW_UP_TRIGGERS = (
+    "elaborate",
+    "ellaborate",
+    "expand",
+    "tell me more",
+    "more detail",
+    "more details",
+    "explain more",
+    "explain further",
+    "further detail",
+    "further clarify",
+    "clarify",
+    "continue",
+    "go on",
+    "what else",
+    "deep dive",
+    "break it down",
+    "break down",
+    "above answer",
+    "above anser",
+    "previous answer",
+    "prior answer",
+    "earlier answer",
+    "give more",
+    "provide more",
+    "what about that",
+    "why was that",
+    "why is that",
+    "how does that",
+)
+
+
+def _is_follow_up_query(query: str, has_prior_context: bool) -> bool:
+    """Detects whether a user query is a conversational follow-up or elaboration
+    referencing a preceding turn rather than an independent standalone question."""
+    if not has_prior_context:
+        return False
+    q = query.strip().lower()
+    if any(trigger in q for trigger in _FOLLOW_UP_TRIGGERS):
+        return True
+    words = [w for w in re.findall(r"[a-z0-9]+", q) if w]
+    if len(words) <= 4 and any(
+        w in ("why", "how", "details", "explain", "more", "that", "this", "it", "who", "which") for w in words
+    ):
+        return True
+    return False
+
+
+def _get_conversation_context(
+    req: ChatRequest,
+    tenant_id: str,
+) -> tuple[str | None, str | None, list[str]]:
+    """Resolves prior turn context (previous_query, previous_answer, prior_chunk_ids).
+    Traverses back past intermediate follow-ups (e.g. 'elaborate') to locate the root
+    substantive topic query so multi-turn follow-up chains retain full grounding."""
+    prev_query: str | None = None
+    prev_answer: str | None = None
+    prior_chunk_ids: list[str] = []
+
+    if req.messages:
+        for msg in reversed(req.messages):
+            if msg.role == "assistant" and not prev_answer:
+                prev_answer = msg.content
+                if msg.evidence_chunk_ids:
+                    prior_chunk_ids.extend(msg.evidence_chunk_ids)
+            elif msg.role == "user" and prev_answer:
+                if not prev_query or _is_follow_up_query(prev_query, has_prior_context=True):
+                    prev_query = msg.content
+                    if not _is_follow_up_query(msg.content, has_prior_context=True):
+                        break
+
+    if (not prev_query or _is_follow_up_query(prev_query, has_prior_context=True)) and req.conversation_id:
+        try:
+            conn = db.get_connection()
+            rows = conn.execute(
+                """
+                SELECT query, answer_json, retrieved_chunk_ids
+                FROM chat_traces
+                WHERE conversation_id = ? AND tenant_id = ?
+                ORDER BY created_at DESC
+                LIMIT 10
+                """,
+                (req.conversation_id, tenant_id),
+            ).fetchall()
+            for row in rows:
+                ans_obj = db.loads(row[1], {})
+                if not prev_answer and isinstance(ans_obj, dict):
+                    prev_answer = ans_obj.get("answer") or ""
+                chunk_list = db.loads(row[2], [])
+                if chunk_list:
+                    prior_chunk_ids.extend([cid for cid in chunk_list if cid not in prior_chunk_ids])
+                q = row[0]
+                if not prev_query or _is_follow_up_query(prev_query, has_prior_context=True):
+                    prev_query = q
+                    if not _is_follow_up_query(q, has_prior_context=True):
+                        break
+        except Exception:
+            logger.exception("Failed to load prior conversation trace for conversation_id=%s", req.conversation_id)
+
+    return prev_query, prev_answer, prior_chunk_ids
 
 
 # --- Intent classification (Phase 4 scope -- see spec section 5) -----------
@@ -235,7 +344,16 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
 
     yield _sse({"type": "status", "stage": "understanding_query"})
 
-    intent = classify_intent(req.query)
+    # Multi-turn conversation context resolution
+    prev_query, prev_answer, prior_chunk_ids = _get_conversation_context(req, identity.tenant_id)
+    is_follow_up = _is_follow_up_query(req.query, has_prior_context=bool(prev_query and prev_answer))
+
+    retrieval_query = req.query
+    if is_follow_up and prev_query:
+        # Reformulate retrieval query so hybrid search & agentic retrieval locate relevant call report passages
+        retrieval_query = f"{prev_query} — {req.query}"
+
+    intent = classify_intent(retrieval_query)
     top_k = _TOP_K_BY_INTENT.get(intent, 10)
 
     # feature/decision-intelligence-layer, Phase A (additive): the new
@@ -245,7 +363,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     # the existing chat flow. See app/routing/query_router.py.
     route_decision: query_router.QueryRouteDecision | None = None
     try:
-        route_decision = query_router.classify_query(req.query)
+        route_decision = query_router.classify_query(retrieval_query)
     except Exception:  # noqa: BLE001
         logger.exception("query router classification failed (non-fatal)")
 
@@ -255,9 +373,23 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     filters = _to_filters(req, identity)
     graph_evidence_count = 0
     try:
-        agentic_result = agentic_retrieval.run(req.query, top_k=top_k, filters=filters)
+        agentic_result = agentic_retrieval.run(retrieval_query, top_k=top_k, filters=filters)
         evidence = agentic_result.evidence
         retrieval_trace = agentic_result.trace
+
+        # If this is an elaboration/follow-up turn, merge prior evidence chunks so
+        # the model has the exact ground-truth source passages from the preceding answer
+        if is_follow_up and prior_chunk_ids:
+            try:
+                prior_rows = search_index._fetch_chunk_rows(prior_chunk_ids, filters)
+                existing_ids = {c["chunk_id"] for c in evidence}
+                for cid, chunk in prior_rows.items():
+                    if cid not in existing_ids:
+                        evidence.append(chunk)
+                        existing_ids.add(cid)
+            except Exception:
+                logger.exception("failed to merge prior evidence chunks (non-fatal)")
+
         if intent == "cross_document_graph":
             graph_evidence = _graph_evidence(filters)
             existing_ids = {c["chunk_id"] for c in evidence}
@@ -301,7 +433,7 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
             router_graph_evidence = _graph_evidence(filters)
             existing_ids = {c["chunk_id"] for c in evidence}
             router_merged = [c for c in router_graph_evidence if c["chunk_id"] not in existing_ids]
-            graph_evidence_count += len(router_merged)
+            graph_evidence_count += len(router_graph_evidence)
             evidence = evidence + router_merged
         except Exception:  # noqa: BLE001
             logger.exception("router-triggered graph evidence fetch failed (non-fatal)")
@@ -330,7 +462,14 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     yield _sse({"type": "status", "stage": "generating"})
 
     try:
-        gen_result = generation.generate_structured_answer(req.query, evidence)
+        gen_result = generation.generate_structured_answer(
+            req.query,
+            evidence,
+            tenant_id=identity.tenant_id,
+            query_category=route_decision.category if route_decision else None,
+            previous_query=prev_query if is_follow_up else None,
+            previous_answer=prev_answer if is_follow_up else None,
+        )
     except Exception as exc:  # noqa: BLE001
         logger.exception("generation failed")
         try:
@@ -353,6 +492,25 @@ async def _chat_stream(req: ChatRequest, identity: auth.Identity):
     validation = citation_validator.validate(gen_result.raw_json, evidence)
     final_answer = validation.answer_json
     validation_summary = validation.summary
+
+    # Phase E (Self-Learning Decision Intelligence Copilot, additive):
+    # Record verified retrieval & citation outcomes to adjust chunk utility multipliers.
+    try:
+        from app.services import learning
+
+        citations = final_answer.get("citations", [])
+        cited_cids = [c["chunk_id"] for c in citations if c.get("chunk_id")]
+        failed_checks = [
+            c.chunk_id for c in validation.checks if not c.support_ok or not c.existence_ok
+        ]
+        learning.record_retrieval_and_validation_outcomes(
+            retrieved_chunk_ids=[c["chunk_id"] for c in evidence],
+            cited_chunk_ids=cited_cids,
+            failed_chunk_ids=failed_checks,
+            tenant_id=identity.tenant_id,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed to record learning outcomes (non-fatal): %s", exc)
 
     # Stream the answer text as word chunks -- see module docstring.
     answer_text = final_answer.get("answer") or ""
@@ -473,3 +631,53 @@ def list_traces(conversation_id: str | None = None, limit: int = 50) -> dict:
         row["citation_validation"] = db.loads(row.get("citation_validation"), {})
         out.append(row)
     return {"traces": out}
+
+
+# --------------------------------------------------------------------------
+# Phase E (Self-Learning Copilot, additive): Feedback & Interaction Endpoints
+# --------------------------------------------------------------------------
+
+
+class FeedbackRequest(BaseModel):
+    trace_id: str
+    rating: int = Field(..., description="+1 for helpful/accurate, -1 for unhelpful/inaccurate")
+    conversation_id: str | None = None
+    issue_category: str | None = None
+    correction_text: str | None = None
+
+
+@router.post("/chat/feedback")
+def submit_feedback(req: FeedbackRequest, identity: auth.Identity = Depends(auth.require_identity)) -> dict:
+    from app.services import learning
+
+    return learning.record_feedback(
+        trace_id=req.trace_id,
+        rating=req.rating,
+        tenant_id=identity.tenant_id,
+        conversation_id=req.conversation_id,
+        issue_category=req.issue_category,
+        correction_text=req.correction_text,
+    )
+
+
+class CitationClickRequest(BaseModel):
+    trace_id: str
+    chunk_id: str
+    document_id: str
+    page_number: int | None = None
+    interaction_type: str = "click"
+
+
+@router.post("/chat/citation-click")
+def track_citation_click(req: CitationClickRequest, identity: auth.Identity = Depends(auth.require_identity)) -> dict:
+    from app.services import learning
+
+    return learning.record_citation_interaction(
+        trace_id=req.trace_id,
+        chunk_id=req.chunk_id,
+        document_id=req.document_id,
+        page_number=req.page_number,
+        interaction_type=req.interaction_type,
+        tenant_id=identity.tenant_id,
+    )
+

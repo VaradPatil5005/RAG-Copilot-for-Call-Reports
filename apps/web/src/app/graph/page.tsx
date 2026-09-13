@@ -92,8 +92,8 @@ export default function GraphPage() {
         description="Explore relationships between customers, opportunities, products, competitors, risks, and actions — every claim traceable to source evidence."
       />
 
-      <div className="mx-8 space-y-4">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mx-8 space-y-5">
+        <div className="flex flex-wrap items-center gap-2.5">
           {(
             [
               { key: "shared_competitor", label: "Customers sharing a competitor" },
@@ -106,10 +106,10 @@ export default function GraphPage() {
               onClick={() => setMode(opt.key)}
               aria-pressed={mode === opt.key}
               className={cn(
-                "rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors",
+                "rounded-xl border px-3.5 py-2 text-[12px] font-medium transition-all duration-200",
                 mode === opt.key
-                  ? "border-primary-dim/60 bg-primary-dim/20 text-primary"
-                  : "border-border-subtle text-text-muted hover:bg-elevated"
+                  ? "border-evidence/50 bg-evidence/15 text-evidence shadow-[0_0_12px_rgba(79,209,197,0.2)]"
+                  : "border-white/10 bg-surface/70 text-text-muted hover:bg-elevated hover:text-text"
               )}
             >
               {opt.label}
@@ -121,7 +121,7 @@ export default function GraphPage() {
               value={predicate}
               onChange={(e) => setPredicate(e.target.value)}
               aria-label="Relationship type"
-              className="rounded-lg border border-border-subtle bg-elevated/60 px-3 py-2 text-[12px] text-text outline-none"
+              className="rounded-xl border border-white/10 bg-surface/80 px-3 py-2 text-[12px] text-text outline-none focus:border-evidence/50"
             >
               {Object.keys(PREDICATE_LABEL).map((p) => (
                 <option key={p} value={p}>
@@ -139,7 +139,7 @@ export default function GraphPage() {
                 onChange={(e) => setNodeId(e.target.value)}
                 placeholder="e.g. customer:contoso"
                 aria-label="Node ID to explore connections from"
-                className="w-56 rounded-lg border border-border-subtle bg-elevated/60 py-2 pl-8 pr-3 text-[12px] text-text placeholder:text-text-faint outline-none"
+                className="w-56 rounded-xl border border-white/10 bg-surface/80 py-2 pl-8 pr-3 text-[12px] text-text placeholder:text-text-faint outline-none focus:border-evidence/50"
               />
             </div>
           )}
@@ -147,7 +147,7 @@ export default function GraphPage() {
           <button
             onClick={run}
             disabled={loading || (mode === "connected" && !nodeId.trim())}
-            className="ml-auto flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-medium text-white transition-opacity disabled:opacity-50"
+            className="ml-auto flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-amber-500 hover:brightness-110 px-4 py-2 text-[12px] font-bold text-bg shadow-[0_0_15px_rgba(240,168,87,0.25)] transition-all disabled:opacity-40"
           >
             {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Share2 className="h-3.5 w-3.5" />}
             Run query
@@ -155,55 +155,56 @@ export default function GraphPage() {
         </div>
 
         {error && (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-400" role="alert">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-[12px] text-red-400" role="alert">
             {error}
           </div>
         )}
 
         {ran && !error && edges.length === 0 && (
-          <div className="rounded-lg border border-border-subtle bg-elevated/40 px-4 py-6 text-center text-[13px] text-text-muted">
+          <div className="rounded-2xl border border-dashed border-white/10 bg-elevated/20 px-4 py-10 text-center text-[13px] text-text-muted">
             No graph edges matched this query (or none are authorized for your identity).
           </div>
         )}
 
         {Object.entries(grouped).map(([pred, byObject]) => (
-          <div key={pred} className="rounded-lg border border-border-subtle bg-elevated/40">
-            <div className="border-b border-border-subtle px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-text-faint">
+          <div key={pred} className="rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] overflow-hidden">
+            <div className="border-b border-white/8 bg-surface/40 px-5 py-3 text-[11px] font-mono font-bold uppercase tracking-wider text-text-muted flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
               {PREDICATE_LABEL[pred] ?? pred}
             </div>
-            <div className="divide-y divide-border-subtle">
+            <div className="divide-y divide-white/6">
               {Object.entries(byObject).map(([objectId, objEdges]) => (
-                <div key={objectId} className="px-4 py-3">
-                  <div className="mb-2 flex items-center gap-1.5 text-[13px] font-medium text-text">
-                    <span className="rounded bg-primary-dim/20 px-1.5 py-0.5 text-[10px] uppercase text-primary">
+                <div key={objectId} className="px-5 py-3.5">
+                  <div className="mb-2 flex items-center gap-2 text-[13px] font-semibold text-text">
+                    <span className="rounded-md bg-evidence/15 border border-evidence/25 px-2 py-0.5 font-mono text-[10px] uppercase text-evidence font-bold">
                       {nodesById[objectId]?.entity_type ?? "entity"}
                     </span>
                     {nodeLabel(objectId, nodesById)}
-                    <span className="text-[11px] font-normal text-text-faint">
+                    <span className="font-mono text-[11px] font-normal text-text-faint">
                       ({objEdges.length} connection{objEdges.length === 1 ? "" : "s"})
                     </span>
                   </div>
-                  <div className="space-y-1.5 pl-1">
+                  <div className="space-y-2 pl-2">
                     {objEdges.map((e) => {
                       const citation = citations[e.edge_id];
                       return (
                         <div
                           key={e.edge_id}
-                          className="flex items-center gap-2 text-[12px] text-text-muted"
+                          className="flex items-center gap-2.5 text-[12px] text-text-muted hover:text-text transition-colors"
                         >
                           <ChevronRight className="h-3 w-3 shrink-0 text-text-faint" />
-                          <span className="text-text">{nodeLabel(e.subject_node_id, nodesById)}</span>
+                          <span className="text-text font-medium">{nodeLabel(e.subject_node_id, nodesById)}</span>
                           {citation && (
                             <span
-                              className="ml-auto flex items-center gap-1 rounded border border-border-subtle px-1.5 py-0.5 text-[10px] text-text-faint"
+                              className="ml-auto flex items-center gap-1.5 rounded-lg border border-white/8 bg-elevated-2/50 px-2 py-0.5 font-mono text-[10px] text-text-faint hover:text-evidence transition-colors"
                               title={`Source: ${citation.document_id}${citation.page ? ` p.${citation.page}` : ""}`}
                             >
-                              <FileText className="h-3 w-3" />
+                              <FileText className="h-3 w-3 text-evidence" />
                               {citation.document_id}
                               {citation.page ? ` · p.${citation.page}` : ""}
                             </span>
                           )}
-                          <span className="rounded bg-elevated px-1.5 py-0.5 text-[10px] text-text-faint">
+                          <span className="rounded-md bg-elevated px-2 py-0.5 font-mono text-[10px] text-text-faint border border-white/5">
                             {e.extractor}
                           </span>
                         </div>

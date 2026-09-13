@@ -3,7 +3,7 @@ import { KnowledgeCoreLoader } from "@/components/three/knowledge-core-loader";
 import { OverviewMetrics } from "@/components/dashboard/overview-metrics";
 import { PipelineStatusPanel } from "@/components/dashboard/pipeline-status";
 import { SystemHealthPanel } from "@/components/dashboard/system-health-panel";
-import { TrendingUp } from "lucide-react";
+import { AIInsightsPanel } from "@/components/dashboard/ai-insights-panel";
 
 export default function DashboardPage() {
   return (
@@ -16,7 +16,7 @@ export default function DashboardPage() {
 
       <OverviewMetrics />
 
-      <div className="mt-6 grid grid-cols-1 gap-4 px-8 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 gap-5 px-8 lg:grid-cols-3">
         <PipelineStatusPanel />
 
         <div className="h-[380px] lg:h-auto">
@@ -24,21 +24,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-4 px-8 lg:grid-cols-2">
-        <div className="rounded-xl border border-border-subtle bg-surface/60 p-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" strokeWidth={1.75} />
-            <p className="font-display text-sm font-medium text-text">AI Insights</p>
-          </div>
-          <div className="mt-4 flex flex-col items-center justify-center gap-2 py-8 text-center">
-            <p className="text-[13px] text-text-muted">No insights generated yet</p>
-            <p className="text-[12px] text-text-faint max-w-xs">
-              Emerging risks, competitor mentions, and pipeline changes will surface here once
-              retrieval and the Copilot (Phase 3–4) are online.
-            </p>
-          </div>
-        </div>
-
+      <div className="mt-6 grid grid-cols-1 gap-5 px-8 lg:grid-cols-2">
+        <AIInsightsPanel />
         <SystemHealthPanel />
       </div>
     </div>

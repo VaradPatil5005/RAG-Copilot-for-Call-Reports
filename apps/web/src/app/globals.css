@@ -8,26 +8,27 @@
    ============================================================ */
 
 :root {
-  --color-bg:            #0A0D12;
-  --color-surface:       #12161F;
-  --color-elevated:      #1B212C;
-  --color-elevated-2:    #232A37;
-  --color-border:        #262E3B;
-  --color-border-subtle: #1C222D;
+  --color-bg:            #06080F;
+  --color-surface:       #0D121D;
+  --color-elevated:      #141B2A;
+  --color-elevated-2:    #1C263A;
+  --color-border:        #233047;
+  --color-border-subtle: #172133;
 
-  --color-text:          #E8EAEE;
-  --color-text-muted:    #9AA3B2;
-  --color-text-faint:    #616B7D;
+  --color-text:          #F1F5F9;
+  --color-text-muted:    #94A3B8;
+  --color-text-faint:    #64748B;
 
-  --color-primary:       #F0A857; /* AI reasoning / thinking */
+  --color-primary:       #F0A857; /* solar amber / AI cognition */
   --color-primary-dim:   #6B5432;
-  --color-evidence:      #4FD1C5; /* grounded / verified evidence */
+  --color-evidence:      #4FD1C5; /* quantum teal / verified evidence */
   --color-evidence-dim:  #295C57;
 
   --color-success:       #6EE7A8;
   --color-warning:       #F0A857;
   --color-error:         #F0685C;
-
+  --color-purple:        #8B5CF6;
+  --color-cyan:          #00F5D4;
 }
 
 @theme inline {
@@ -51,11 +52,7 @@
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
 
-  /* NOTE: Space Grotesk / Inter / JetBrains Mono via next/font/google require
-     network access to fonts.googleapis.com, unavailable in this sandbox.
-     Falls back to system stacks with a similar character. Re-enable
-     next/font/google (see layout.tsx history) once running with network
-     access, or self-host the .woff2 files under public/fonts. */
+  /* NOTE: Space Grotesk / Inter / JetBrains Mono fallback */
   --font-display: "Space Grotesk", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -76,19 +73,77 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Subtle grain/gradient depth for the app background */
+/* Google Antigravity cosmic space depth */
 .app-backdrop {
-  background:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(240, 168, 87, 0.06), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(79, 209, 197, 0.05), transparent),
-    var(--color-bg);
+  background-color: #06080F;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 92, 246, 0.09), transparent),
+    radial-gradient(ellipse 70% 45% at 95% 15%, rgba(79, 209, 197, 0.08), transparent),
+    radial-gradient(ellipse 60% 40% at 5% 45%, rgba(240, 168, 87, 0.06), transparent),
+    radial-gradient(circle at 50% 85%, rgba(59, 130, 246, 0.05), transparent);
+  background-attachment: fixed;
 }
 
+/* Subtle zero-gravity perspective grid */
+.cyber-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Specular Antigravity glassmorphism */
 .glass {
-  background: rgba(27, 33, 44, 0.55);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid var(--color-border-subtle);
+  background: rgba(13, 18, 29, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+}
+
+.antigravity-card {
+  background: rgba(13, 18, 29, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 4px 20px -2px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.antigravity-card:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), 0 8px 30px -4px rgba(0, 0, 0, 0.6);
+  transform: translateY(-1px);
+}
+
+/* Gradient text utilities */
+.antigravity-text-gradient {
+  background: linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 50%, #94A3B8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.antigravity-text-cyan {
+  background: linear-gradient(135deg, #FFFFFF 0%, #4FD1C5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.antigravity-text-amber {
+  background: linear-gradient(135deg, #FFFFFF 0%, #F0A857 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hud-chip {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 9999px;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 27, 42, 0.6);
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -107,4 +162,201 @@ body {
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
+}
+
+/* ============================================================
+   PERPLEXITY-STYLE COPILOT CHAT INTERFACE
+   ============================================================ */
+
+/* Inline numbered citation badges [1], [2] */
+.citation-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: baseline;
+  position: relative;
+  top: -0.25em;
+  min-width: 1.25rem;
+  height: 1.15rem;
+  padding: 0 0.35rem;
+  margin: 0 0.2rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  color: var(--color-evidence);
+  background: rgba(79, 209, 197, 0.12);
+  border: 1px solid rgba(79, 209, 197, 0.25);
+  cursor: pointer;
+  user-select: none;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.citation-badge:hover {
+  color: #ffffff;
+  background: var(--color-evidence);
+  border-color: var(--color-evidence);
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 2px 8px rgba(79, 209, 197, 0.4);
+}
+
+.citation-badge-active {
+  color: #ffffff !important;
+  background: var(--color-evidence) !important;
+  border-color: var(--color-evidence) !important;
+  transform: translateY(-1px) scale(1.15);
+  box-shadow: 0 0 12px rgba(79, 209, 197, 0.6) !important;
+  animation: citation-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes citation-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(79, 209, 197, 0.85);
+  }
+}
+
+/* Chat turn container */
+.copilot-turn {
+  padding-bottom: 2rem;
+  margin-bottom: 2rem;
+  border-bottom: 1px solid var(--color-border-subtle);
+  animation: turn-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.copilot-turn:last-child {
+  border-bottom: none;
+  margin-bottom: 0.5rem;
+}
+
+@keyframes turn-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Typography for AI answer */
+.copilot-answer-text {
+  font-size: 0.9375rem;
+  line-height: 1.75;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+  word-break: break-word;
+  white-space: pre-line;
+}
+
+/* Answer footer with confidence, model & feedback */
+.copilot-answer-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+}
+
+/* Perplexity-style suggestion chips */
+.copilot-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.6rem 0.95rem;
+  border-radius: 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-text-muted);
+  background: rgba(27, 33, 44, 0.45);
+  border: 1px solid var(--color-border-subtle);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.copilot-suggestion-chip:hover {
+  color: var(--color-text);
+  background: rgba(35, 42, 55, 0.7);
+  border-color: var(--color-border);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.copilot-suggestion-chip:active {
+  transform: translateY(0) scale(0.98);
+}
+
+/* Input container */
+.copilot-input-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(18, 22, 31, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 0.35rem 0.5rem 0.35rem 1rem;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35);
+  transition: all 0.2s ease-in-out;
+}
+
+.copilot-input-container:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 8px 30px -4px rgba(240, 168, 87, 0.15), 0 0 0 1px rgba(240, 168, 87, 0.25);
+}
+
+/* Input field */
+.copilot-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  line-height: 1.5;
+  padding: 0.4rem 0;
+}
+
+.copilot-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+/* Send button */
+.copilot-send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.25rem;
+  width: 2.25rem;
+  border-radius: 0.75rem;
+  background: var(--color-primary);
+  color: var(--color-bg);
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  flex-shrink: 0;
+}
+
+.copilot-send-btn:hover:not(:disabled) {
+  background: #f5b974;
+  transform: scale(1.05);
+  box-shadow: 0 2px 10px rgba(240, 168, 87, 0.4);
+}
+
+.copilot-send-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.copilot-send-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }

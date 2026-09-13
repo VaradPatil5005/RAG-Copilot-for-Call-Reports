@@ -2,7 +2,11 @@
 
 import { useEffect, useState, Component, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import type { CoreState } from "./knowledge-core";
+import {
+  type CoreState,
+  AnimatedOrbFallback,
+  isWebGLAvailable,
+} from "./knowledge-core";
 import { cn } from "@/lib/utils";
 
 const KnowledgeCore = dynamic(
@@ -31,34 +35,11 @@ class Canvas3DBoundary extends Component<
   }
 }
 
-function hasWebGL() {
-  try {
-    const canvas = document.createElement("canvas");
-    return !!(
-      window.WebGLRenderingContext &&
-      (canvas.getContext("webgl") || canvas.getContext("experimental-webgl"))
-    );
-  } catch {
-    return false;
-  }
-}
-
-function StaticFallback() {
-  return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="relative h-40 w-40 rounded-full border border-primary/30">
-        <div className="absolute inset-4 rounded-full border border-evidence/25" />
-        <div className="absolute inset-10 rounded-full bg-primary/10" />
-      </div>
-    </div>
-  );
-}
-
 export function KnowledgeCorePanel() {
   const [idx, setIdx] = useState(0);
   // Safe to call eagerly: this component is only ever mounted client-side
   // (see the dynamic ssr:false import in dashboard usage).
-  const [webgl] = useState<boolean>(() => hasWebGL());
+  const [webgl] = useState<boolean>(() => isWebGLAvailable());
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -94,11 +75,11 @@ export function KnowledgeCorePanel() {
 
       <div className="relative flex-1">
         {webgl ? (
-          <Canvas3DBoundary fallback={<StaticFallback />}>
+          <Canvas3DBoundary fallback={<AnimatedOrbFallback state={current.state} />}>
             <KnowledgeCore state={current.state} />
           </Canvas3DBoundary>
         ) : (
-          <StaticFallback />
+          <AnimatedOrbFallback state={current.state} />
         )}
       </div>
 

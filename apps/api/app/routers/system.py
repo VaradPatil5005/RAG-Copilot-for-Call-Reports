@@ -284,3 +284,158 @@ def admin_overview(request: Request) -> dict:
             ).fetchone()
         ),
     }
+
+
+@router.get("/insights")
+def ai_insights(limit: int = 20) -> dict:
+    """Synthesizes cross-report intelligence and actionable signals across
+    all ingested call reports: active risks, action commitments, and competitor mentions.
+    """
+    conn = db.get_connection()
+    items: list[dict] = []
+
+    # 1. Narrative graph-extracted risks (e.g. Contoso, Globex)
+    risk_edges = db.rows_to_list(
+        conn.execute(
+            """
+            SELECT d.document_id, d.filename, d.customer_name, c.content
+            FROM graph_edges ge
+            JOIN documents d ON d.document_id = ge.source_document_id
+            LEFT JOIN chunks c ON c.chunk_id = ge.source_chunk_id
+            WHERE ge.predicate = 'HAS_RISK'
+            """
+        ).fetchall()
+    )
+    for r in risk_edges:
+        content = (r.get("content") or "").strip()
+        lines = [
+            ln.strip()
+            for ln in content.split("\n")
+            if ln.strip()
+            and not ln.startswith("Document:")
+            and not ln.startswith("Section:")
+            and not ln.startswith("Page:")
+            and not ln.startswith("Risks")
+        ]
+        desc = " ".join(lines)
+        items.append({
+            "id": f"risk-{r['document_id']}",
+            "type": "risk",
+            "category": "Compliance & Operational",
+            "severity": "high",
+            "title": f"Risk Detected: {r.get('customer_name') or r.get('filename')}",
+            "description": desc[:240] if desc else f"Risk signal identified in {r['filename']}.",
+            "source_document": r["filename"],
+            "document_id": r["document_id"],
+            "customer": r.get("customer_name") or "Enterprise Account",
+            "owner": "Account Director",
+            "due_date": "High Priority",
+        })
+
+    # 2. Structured risk tables from domain call reports
+    risk_tables = db.rows_to_list(
+        conn.execute(
+            """
+            SELECT d.document_id, d.filename, d.customer_name, c.table_json
+            FROM chunks c
+            JOIN documents d ON d.document_id = c.document_id
+            WHERE c.section_path LIKE '%risk%' AND c.chunk_type = 'table'
+            """
+        ).fetchall()
+    )
+    for rt in risk_tables:
+        raw_json = rt.get("table_json")
+        if not raw_json:
+            continue
+        try:
+            tdata = db.loads(raw_json) or {}
+            for row in tdata.get("rows", []):
+                if len(row) >= 4 and "risk" in str(row[1]).lower():
+                    desc = str(row[2]).replace("\n", " ").strip()
+                    owner = str(row[4]).replace("\n", " ").strip() if len(row) > 4 else "Project Team"
+                    clean_cust = rt.get("customer_name") or rt["filename"].replace("_Call_Report.pdf", "").replace("_", " ").lstrip("0123456789 ")
+                    items.append({
+                        "id": f"risk-{rt['document_id']}-{str(row[0])[:8]}",
+                        "type": "risk",
+                        "category": "Operational Risk",
+                        "severity": str(row[3]).lower() if len(row) > 3 else "high",
+                        "title": desc[:65] + ("..." if len(desc) > 65 else ""),
+                        "description": desc,
+                        "source_document": rt["filename"],
+                        "document_id": rt["document_id"],
+                        "customer": clean_cust,
+                        "owner": owner,
+                        "due_date": "Active",
+                    })
+        except Exception:
+            continue
+
+    # 3. Action registers across all domain reports
+    action_tables = db.rows_to_list(
+        conn.execute(
+            """
+            SELECT d.document_id, d.filename, d.customer_name, c.table_json
+            FROM chunks c
+            JOIN documents d ON d.document_id = c.document_id
+            WHERE c.section_path LIKE '%Action register%' AND c.chunk_type = 'table'
+            """
+        ).fetchall()
+    )
+    for at in action_tables:
+        raw_json = at.get("table_json")
+        if not raw_json:
+            continue
+        try:
+            tdata = db.loads(raw_json) or {}
+            for row in tdata.get("rows", []):
+                if len(row) >= 3:
+                    clean_cust = at.get("customer_name") or at["filename"].replace("_Call_Report.pdf", "").replace("_", " ").lstrip("0123456789 ")
+                    status = str(row[3]) if len(row) > 3 else "Open"
+                    items.append({
+                        "id": f"action-{at['document_id']}-{str(row[0])[:8]}",
+                        "type": "action",
+                        "category": "Action Item",
+                        "severity": "medium",
+                        "title": str(row[0]),
+                        "description": f"Assigned to {row[1]} with target delivery {row[2]}. Status: {status}",
+                        "source_document": at["filename"],
+                        "document_id": at["document_id"],
+                        "customer": clean_cust,
+                        "owner": str(row[1]),
+                        "due_date": str(row[2]),
+                    })
+        except Exception:
+            continue
+
+    # 4. Competitor intelligence
+    comp_edges = db.rows_to_list(
+        conn.execute(
+            """
+            SELECT d.document_id, d.filename, d.customer_name, ge.object_node_id
+            FROM graph_edges ge
+            JOIN documents d ON d.document_id = ge.source_document_id
+            WHERE ge.predicate = 'MENTIONED_COMPETITOR'
+            GROUP BY d.document_id, ge.object_node_id
+            """
+        ).fetchall()
+    )
+    for ce in comp_edges:
+        comp = ce["object_node_id"].replace("competitor:", "").title()
+        items.append({
+            "id": f"comp-{ce['document_id']}-{ce['object_node_id']}",
+            "type": "market",
+            "category": "Competitor Signal",
+            "severity": "medium",
+            "title": f"Competitive Pressure: {comp}",
+            "description": f"Customer evaluation cited {comp} regarding pricing and capabilities comparison.",
+            "source_document": ce["filename"],
+            "document_id": ce["document_id"],
+            "customer": ce.get("customer_name") or "Enterprise Account",
+            "owner": "Account Team",
+            "due_date": "Ongoing",
+        })
+
+    return {
+        "n_insights": len(items),
+        "insights": items[:limit],
+    }

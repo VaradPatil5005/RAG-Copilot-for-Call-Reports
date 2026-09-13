@@ -840,6 +840,23 @@ def hybrid_search(
         candidates.append(row)
 
     reranked = rerank(query, candidates)
+
+    # Phase E (Self-Learning Decision Intelligence Copilot, additive):
+    # Apply learned chunk utility multipliers (bounded [0.70, 1.30]) based
+    # on historical verification and human feedback.
+    try:
+        from app.services import learning
+
+        utility_map = learning.get_chunk_utility_multipliers([c["chunk_id"] for c in reranked])
+        for c in reranked:
+            mult = utility_map.get(c["chunk_id"], 1.0)
+            c["utility_multiplier"] = mult
+            c["raw_rerank_score"] = c.get("rerank_score", 0.0)
+            c["rerank_score"] = c["raw_rerank_score"] * mult
+        reranked.sort(key=lambda c: c["rerank_score"], reverse=True)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Failed to apply chunk utility multipliers (non-fatal): %s", exc)
+
     trace.reranked_count = len(reranked)
     trace.reranker_provider = "fastembed" if not reranker_is_fallback() else "lexical-overlap-fallback"
     trace.embedding_provider = "fastembed" if not embeddings.provider_is_fallback() else "hashing-fallback"

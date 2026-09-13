@@ -110,25 +110,49 @@ def _detect_recency(query: str) -> str | None:
     return None
 
 
-def _detect_entities(query: str) -> list[str]:
+def _detect_entities(query: str, extra_aliases: dict[str, list[str]] | None = None) -> list[str]:
     found = []
     q_lower = query.lower()
-    for canonical, aliases in COMPANY_ALIASES.items():
+    combined_aliases = dict(COMPANY_ALIASES)
+    if extra_aliases:
+        for k, v in extra_aliases.items():
+            combined_aliases.setdefault(k, []).extend(v)
+
+    for canonical, aliases in combined_aliases.items():
         if canonical in q_lower or any(a in q_lower for a in aliases):
             found.append(canonical)
     return found
 
 
-def rewrite_query(query: str) -> RewriteResult:
+def rewrite_query(query: str, tenant_id: str = "tenant-a") -> RewriteResult:
     """Expands synonyms/aliases/acronyms and normalizes recency language.
+    Combines static seed tables with self-discovered terms from learned_lexicon.
     Returns both the rewritten (retrieval-only) query and metadata used to
     steer downstream retrieval weighting and answer-time recency handling.
     """
     expansions: list[str] = []
     q_lower = query.lower()
 
+    # Load active learned lexicon for this tenant
+    from app.services import lexicon_miner
+
+    try:
+        learned = lexicon_miner.get_active_lexicon(tenant_id)
+    except Exception:
+        learned = {"acronyms": {}, "company_aliases": {}, "domain_synonyms": {}}
+
+    combined_aliases = dict(COMPANY_ALIASES)
+    for k, v in learned.get("company_aliases", {}).items():
+        combined_aliases.setdefault(k, []).extend(v)
+
+    combined_synonyms = dict(DOMAIN_SYNONYMS)
+    for k, v in learned.get("domain_synonyms", {}).items():
+        combined_synonyms.setdefault(k, []).extend(v)
+
+    combined_acronyms = {**ACRONYMS, **learned.get("acronyms", {})}
+
     additions: list[str] = []
-    for canonical, aliases in COMPANY_ALIASES.items():
+    for canonical, aliases in combined_aliases.items():
         hit = canonical if canonical in q_lower else next((a for a in aliases if a in q_lower), None)
         if hit:
             for alt in [canonical, *aliases]:
@@ -136,7 +160,7 @@ def rewrite_query(query: str) -> RewriteResult:
                     additions.append(alt)
                     expansions.append(f"{hit} -> {alt}")
 
-    for canonical, synonyms in DOMAIN_SYNONYMS.items():
+    for canonical, synonyms in combined_synonyms.items():
         hit = canonical if canonical in q_lower else next((s for s in synonyms if s in q_lower), None)
         if hit:
             for alt in [canonical, *synonyms]:
@@ -145,7 +169,7 @@ def rewrite_query(query: str) -> RewriteResult:
                     expansions.append(f"{hit} -> {alt}")
 
     for token in _TOKEN_RE.findall(q_lower):
-        expansion = ACRONYMS.get(token)
+        expansion = combined_acronyms.get(token)
         if expansion and expansion not in q_lower:
             additions.append(expansion)
             expansions.append(f"{token} -> {expansion}")
@@ -162,5 +186,6 @@ def rewrite_query(query: str) -> RewriteResult:
         intent_mode=classify_intent_mode(query),
         expansions=expansions,
         recency_hint=_detect_recency(query),
-        detected_entities=_detect_entities(query),
+        detected_entities=_detect_entities(query, learned.get("company_aliases")),
     )
+

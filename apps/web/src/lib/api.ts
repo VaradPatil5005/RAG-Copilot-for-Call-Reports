@@ -141,6 +141,50 @@ export async function getSystemHealth(): Promise<SystemHealth> {
   return jsonOrThrow<SystemHealth>(res);
 }
 
+export interface SystemMetrics {
+  n_traces: number;
+  abstention_rate: number;
+  fallback_provider_rate: number;
+  json_retry_rate: number;
+  citation_validation_pass_rate: number | null;
+  unsupported_claim_rate: number | null;
+  latency_ms: {
+    p50: number | null;
+    p95: number | null;
+    p99: number | null;
+  };
+  message?: string;
+}
+
+export async function getSystemMetrics(): Promise<SystemMetrics> {
+  const res = await fetch(`${API_BASE}/system/metrics`, { cache: "no-store" });
+  return jsonOrThrow<SystemMetrics>(res);
+}
+
+export interface AIInsightItem {
+  id: string;
+  type: "risk" | "action" | "market";
+  category: string;
+  severity: "high" | "medium" | "low" | "info";
+  title: string;
+  description: string;
+  source_document: string;
+  document_id: string;
+  customer: string;
+  owner?: string;
+  due_date?: string;
+}
+
+export interface AIInsightsResponse {
+  n_insights: number;
+  insights: AIInsightItem[];
+}
+
+export async function getAIInsights(): Promise<AIInsightsResponse> {
+  const res = await fetch(`${API_BASE}/system/insights`, { cache: "no-store" });
+  return jsonOrThrow<AIInsightsResponse>(res);
+}
+
 export async function getDocumentStats(): Promise<DocumentStats> {
   const res = await fetch(`${API_BASE}/documents/stats`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<DocumentStats>(res);
@@ -338,6 +382,12 @@ export type ChatStreamEvent =
   | ChatFinalEvent
   | { type: "error"; message: string };
 
+export interface ChatMessageIn {
+  role: "user" | "assistant";
+  content: string;
+  evidence_chunk_ids?: string[];
+}
+
 /** Streams a Copilot chat exchange over SSE, invoking `onEvent` for every
  * parsed event as it arrives. Resolves with the final event once the
  * stream completes (or throws if none arrived / the request failed). */
@@ -346,6 +396,7 @@ export async function streamChat(
   opts: {
     conversationId?: string | null;
     filters?: SearchFilters;
+    messages?: ChatMessageIn[];
     onEvent?: (event: ChatStreamEvent) => void;
     signal?: AbortSignal;
   } = {}
@@ -357,6 +408,7 @@ export async function streamChat(
       query,
       conversation_id: opts.conversationId ?? null,
       filters: opts.filters ?? null,
+      messages: opts.messages ?? null,
     }),
     signal: opts.signal,
   });
@@ -737,3 +789,140 @@ export async function getObservabilityDashboard(): Promise<ObservabilityDashboar
   const res = await fetch(`${API_BASE}/observability/dashboard`, { cache: "no-store" });
   return jsonOrThrow(res);
 }
+
+// --------------------------------------------------------------------------
+// Phase E (Self-Learning Decision Intelligence Copilot, additive)
+// --------------------------------------------------------------------------
+
+export interface FeedbackSubmission {
+  trace_id: string;
+  rating: 1 | -1;
+  conversation_id?: string;
+  issue_category?: string;
+  correction_text?: string;
+}
+
+export interface CitationClickSubmission {
+  trace_id: string;
+  chunk_id: string;
+  document_id: string;
+  page_number?: number | null;
+  interaction_type?: string;
+}
+
+export interface LearningStatus {
+  tenant_id: string;
+  feedback: {
+    total: number;
+    positive: number;
+    negative: number;
+    citation_clicks: number;
+  };
+  utility: {
+    tracked_chunks: number;
+    avg_multiplier: number;
+    boosted_chunks: number;
+    demoted_chunks: number;
+  };
+  lexicon: {
+    total_terms: number;
+    active_terms: number;
+    pending_terms: number;
+  };
+  exemplars_count: number;
+}
+
+export interface LearnedLexiconItem {
+  id: number;
+  tenant_id: string;
+  term: string;
+  expansion: string;
+  category: "acronym" | "company_alias" | "domain_synonym";
+  source: string;
+  confidence: number;
+  frequency: number;
+  status: "active" | "pending_review" | "rejected";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GoldenExemplar {
+  exemplar_id: string;
+  tenant_id: string;
+  query_category: string;
+  query: string;
+  synthesized_reasoning: string | null;
+  verified_answer_json: Record<string, unknown>;
+  citation_count: number;
+  utility_score: number;
+  created_at: string;
+}
+
+export interface ChunkUtilityScore {
+  chunk_id: string;
+  tenant_id: string;
+  retrieval_count: number;
+  citation_count: number;
+  citation_failed_count: number;
+  human_positive_count: number;
+  human_negative_count: number;
+  utility_multiplier: number;
+  updated_at: string;
+}
+
+export async function submitChatFeedback(payload: FeedbackSubmission): Promise<{ status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/chat/feedback`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function trackCitationClick(payload: CitationClickSubmission): Promise<{ status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/chat/citation-click`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function getLearningStatus(): Promise<LearningStatus> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/status`, { headers, cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+export async function getLearnedLexicon(status?: string): Promise<{ items: LearnedLexiconItem[]; count: number }> {
+  const headers = await getAuthHeaders();
+  const url = status ? `${API_BASE}/learning/lexicon?status=${encodeURIComponent(status)}` : `${API_BASE}/learning/lexicon`;
+  const res = await fetch(url, { headers, cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+export async function updateLearnedLexiconStatus(termId: number, status: string): Promise<{ status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/lexicon/${termId}`, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function getGoldenExemplars(category?: string): Promise<{ exemplars: GoldenExemplar[]; count: number }> {
+  const headers = await getAuthHeaders();
+  const url = category ? `${API_BASE}/learning/exemplars?category=${encodeURIComponent(category)}` : `${API_BASE}/learning/exemplars`;
+  const res = await fetch(url, { headers, cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+export async function getChunkUtilityScores(limit = 50): Promise<{ scores: ChunkUtilityScore[] }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/utility-scores?limit=${limit}`, { headers, cache: "no-store" });
+  return jsonOrThrow(res);
+}
+

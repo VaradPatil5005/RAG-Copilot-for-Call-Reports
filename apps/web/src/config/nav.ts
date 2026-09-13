@@ -8,6 +8,7 @@ import {
   ShieldCheck,
   Brain,
   Gauge,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -75,4 +76,12 @@ export const NAV_ITEMS: NavItem[] = [
     icon: Gauge,
     description: "Stage latency, per-query cost & failure log",
   },
+  // Phase E (Self-Learning Decision Intelligence Copilot, additive)
+  {
+    label: "Self-Learning",
+    href: "/learning",
+    icon: Sparkles,
+    description: "Adaptive utility, learned lexicon & few-shot memory",
+  },
 ];
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo } from "react";
+import { useRef, useMemo, useState } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -73,13 +73,86 @@ function Rings({ state }: { state: CoreState }) {
   );
 }
 
-export function KnowledgeCore({ state = "idle" as CoreState }: { state?: CoreState }) {
+export function AnimatedOrbFallback({ state }: { state: CoreState }) {
+  const color = STATE_COLOR[state];
+  const isTeal = state === "generating";
+
   return (
-    <div className="h-full w-full" aria-hidden="true">
+    <div className="flex h-full w-full items-center justify-center py-4">
+      <div className="relative h-36 w-36 flex items-center justify-center">
+        {/* Outer orbital ring */}
+        <div
+          className="absolute inset-0 rounded-full border border-dashed animate-[spin_10s_linear_infinite]"
+          style={{ borderColor: `${color}60` }}
+        />
+        {/* Middle tilted orbital ring */}
+        <div
+          className="absolute inset-3 rounded-full border animate-[spin_7s_linear_infinite_reverse]"
+          style={{ borderColor: isTeal ? "#4FD1C580" : "#F0A85780" }}
+        />
+        {/* Inner ring */}
+        <div
+          className="absolute inset-7 rounded-full border border-dotted animate-[spin_5s_linear_infinite]"
+          style={{ borderColor: `${color}90` }}
+        />
+        {/* Pulsing core */}
+        <div
+          className="h-12 w-12 rounded-full border border-white/20 animate-pulse flex items-center justify-center"
+          style={{
+            backgroundColor: `${color}25`,
+            boxShadow: `0 0 20px ${color}50`,
+          }}
+        >
+          <div
+            className="h-4 w-4 rounded-full"
+            style={{ backgroundColor: color }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function isWebGLAvailable(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const canvas = document.createElement("canvas");
+    const gl = canvas.getContext("webgl2") || canvas.getContext("webgl");
+    if (!gl) return false;
+    const ext = (gl as WebGLRenderingContext).getExtension("WEBGL_lose_context");
+    if (ext) ext.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function KnowledgeCore({ state = "idle" as CoreState }: { state?: CoreState }) {
+  const [glSupported] = useState<boolean>(() => isWebGLAvailable());
+  const [glFailed, setGlFailed] = useState(false);
+
+  if (!glSupported || glFailed) {
+    return <AnimatedOrbFallback state={state} />;
+  }
+
+  return (
+    <div className="h-full w-full min-h-[220px]" aria-hidden="true">
       <Canvas
         camera={{ position: [0, 0, 4.2], fov: 42 }}
-        gl={{ antialias: true, alpha: true }}
-        dpr={[1, 1.5]}
+        gl={{
+          antialias: true,
+          alpha: true,
+          powerPreference: "default",
+          failIfMajorPerformanceCaveat: false,
+        }}
+        dpr={typeof window !== "undefined" ? Math.min(window.devicePixelRatio, 1.5) : 1}
+        fallback={<AnimatedOrbFallback state={state} />}
+        onCreated={({ gl }) => {
+          gl.domElement.addEventListener("webglcontextlost", (event) => {
+            event.preventDefault();
+            setGlFailed(true);
+          });
+        }}
       >
         <Rings state={state} />
       </Canvas>

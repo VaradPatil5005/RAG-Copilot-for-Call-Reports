@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { getAdminOverview, getAuditLog, getLatestEvaluation, type AdminOverview, type AuditLogEntry, type EvaluationReport } from "@/lib/api";
 
-function Section({ title, icon: Icon, children }: { title: string; icon: React.ElementType; children: React.ReactNode }) {
+function Section({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
     <div className="mb-8">
       <div className="mb-3 flex items-center gap-2">

@@ -16,7 +16,11 @@
 
 import { Component, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
-import type { CoreState } from "@/components/three/knowledge-core";
+import {
+  type CoreState,
+  AnimatedOrbFallback,
+  isWebGLAvailable,
+} from "@/components/three/knowledge-core";
 import type { CopilotStage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -54,49 +58,26 @@ class Canvas3DBoundary extends Component<
   }
 }
 
-function hasWebGL() {
-  try {
-    const canvas = document.createElement("canvas");
-    return !!(
-      window.WebGLRenderingContext &&
-      (canvas.getContext("webgl") || canvas.getContext("experimental-webgl"))
-    );
-  } catch {
-    return false;
-  }
-}
-
-function StaticFallback() {
-  return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div className="relative h-32 w-32 rounded-full border border-primary/30">
-        <div className="absolute inset-4 rounded-full border border-evidence/25" />
-        <div className="absolute inset-8 rounded-full bg-primary/10" />
-      </div>
-    </div>
-  );
-}
-
 export function CopilotCorePanel({ stage }: { stage: CopilotStage | null }) {
-  const [webgl] = useState<boolean>(() => hasWebGL());
+  const [webgl] = useState<boolean>(() => isWebGLAvailable());
   const coreState: CoreState = stage ? STAGE_TO_CORE_STATE[stage] : "idle";
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden rounded-xl border border-border-subtle bg-surface/60">
-      <div className="flex items-center justify-between px-5 pt-5">
+      <div className="flex items-center justify-between px-5 pt-4">
         <div>
-          <p className="text-[11px] font-medium uppercase tracking-widest text-text-faint">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-text-faint">
             This exchange
           </p>
-          <p className="mt-1 font-display text-sm font-medium text-text">Knowledge Core</p>
+          <p className="mt-0.5 font-display text-xs font-semibold text-text">Knowledge Core</p>
         </div>
         <span
           className={cn(
-            "rounded-full px-2.5 py-1 text-[10px] font-medium",
+            "rounded-full px-2.5 py-0.5 text-[10px] font-mono font-medium",
             coreState === "generating"
-              ? "bg-evidence-dim/40 text-evidence"
+              ? "bg-evidence-dim/40 text-evidence border border-evidence/30"
               : stage
-                ? "bg-primary-dim/40 text-primary"
+                ? "bg-primary-dim/40 text-primary border border-primary/30"
                 : "bg-elevated-2 text-text-faint"
           )}
         >
@@ -104,18 +85,18 @@ export function CopilotCorePanel({ stage }: { stage: CopilotStage | null }) {
         </span>
       </div>
 
-      <div className="relative flex-1">
+      <div className="relative flex-1 min-h-[160px]">
         {webgl ? (
-          <Canvas3DBoundary fallback={<StaticFallback />}>
+          <Canvas3DBoundary fallback={<AnimatedOrbFallback state={coreState} />}>
             <KnowledgeCore state={coreState} />
           </Canvas3DBoundary>
         ) : (
-          <StaticFallback />
+          <AnimatedOrbFallback state={coreState} />
         )}
       </div>
 
-      <div className="px-5 pb-5 text-[11px] text-text-faint">
-        Driven by real `/chat` SSE status events for this exchange — not a demo cycle.
+      <div className="px-4 pb-3 text-[10px] font-mono text-text-faint">
+        Driven by real `/chat` SSE status events for this exchange.
       </div>
     </div>
   );

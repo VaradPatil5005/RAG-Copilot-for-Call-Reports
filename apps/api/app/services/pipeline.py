@@ -399,6 +399,17 @@ def process_document(document_id: str, version: int, attempt: int = 1) -> None:
             log_event(document_id, version, "graph_extraction", "error", str(exc))
             graph_stats = graph_extraction.ExtractionStats()
 
+        # --- Stage: lexicon_mining (Self-Learning Copilot) --------------------
+        try:
+            from app.services import lexicon_miner
+
+            all_text = " ".join((el.get("text") or "") for el in elements)
+            mined_count = lexicon_miner.mine_and_persist_from_document(document_id, all_text, tenant_id)
+            if mined_count > 0:
+                log_event(document_id, version, "indexing", "lexicon_mined", f"Discovered {mined_count} domain terms")
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("lexicon mining failed for %s (non-fatal)", document_id)
+
         manifest = {
             "document_id": document_id,
             "version": version,

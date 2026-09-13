@@ -395,6 +395,85 @@ CREATE TABLE IF NOT EXISTS chat_trace_errors (
 );
 
 CREATE INDEX IF NOT EXISTS idx_chat_trace_errors_created ON chat_trace_errors(created_at);
+
+-- Phase E (Self-Learning Decision Intelligence Copilot, additive):
+-- Human feedback and interaction telemetry
+CREATE TABLE IF NOT EXISTS chat_feedback (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id             TEXT NOT NULL,
+    conversation_id      TEXT,
+    tenant_id            TEXT NOT NULL,
+    rating               INTEGER NOT NULL,   -- +1 (helpful) | -1 (unhelpful)
+    issue_category       TEXT,               -- 'incorrect_data' | 'wrong_citation' | 'unsupported_claim' | 'outdated_info' | 'missing_context' | 'other'
+    correction_text      TEXT,
+    created_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_feedback_trace ON chat_feedback(trace_id);
+CREATE INDEX IF NOT EXISTS idx_chat_feedback_tenant ON chat_feedback(tenant_id);
+
+CREATE TABLE IF NOT EXISTS citation_interactions (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    trace_id             TEXT NOT NULL,
+    chunk_id             TEXT NOT NULL,
+    document_id          TEXT NOT NULL,
+    page_number          INTEGER,
+    interaction_type     TEXT NOT NULL,      -- 'click' | 'preview' | 'copy'
+    tenant_id            TEXT NOT NULL,
+    created_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_citation_interactions_chunk ON citation_interactions(chunk_id);
+CREATE INDEX IF NOT EXISTS idx_citation_interactions_trace ON citation_interactions(trace_id);
+
+-- Adaptive retrieval utility scores per chunk
+CREATE TABLE IF NOT EXISTS chunk_utility_scores (
+    chunk_id             TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    retrieval_count      INTEGER DEFAULT 0,
+    citation_count       INTEGER DEFAULT 0,
+    citation_failed_count INTEGER DEFAULT 0,
+    human_positive_count INTEGER DEFAULT 0,
+    human_negative_count INTEGER DEFAULT 0,
+    utility_multiplier   REAL DEFAULT 1.0,   -- bounded [0.70, 1.30]
+    updated_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_chunk_utility_tenant ON chunk_utility_scores(tenant_id);
+
+-- Self-discovered domain lexicon, acronyms & entity aliases
+CREATE TABLE IF NOT EXISTS learned_lexicon (
+    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id            TEXT NOT NULL,
+    term                 TEXT NOT NULL,
+    expansion            TEXT NOT NULL,
+    category             TEXT NOT NULL,       -- 'acronym' | 'company_alias' | 'domain_synonym'
+    source               TEXT NOT NULL,       -- 'ingestion_extraction' | 'user_query' | 'manual_admin'
+    confidence           REAL NOT NULL,       -- 0.0 to 1.0
+    frequency            INTEGER DEFAULT 1,
+    status               TEXT NOT NULL DEFAULT 'active', -- 'active' | 'pending_review' | 'rejected'
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL,
+    UNIQUE(tenant_id, term, expansion)
+);
+
+CREATE INDEX IF NOT EXISTS idx_learned_lexicon_lookup ON learned_lexicon(tenant_id, term);
+CREATE INDEX IF NOT EXISTS idx_learned_lexicon_status ON learned_lexicon(tenant_id, status);
+
+-- Dynamic Few-Shot Exemplar Memory
+CREATE TABLE IF NOT EXISTS golden_exemplars (
+    exemplar_id          TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    query_category       TEXT NOT NULL,       -- 'comparison' | 'trend' | 'multi_hop' | 'lookup' | 'graph_relationship'
+    query                TEXT NOT NULL,
+    synthesized_reasoning TEXT,
+    verified_answer_json TEXT NOT NULL,
+    citation_count       INTEGER NOT NULL,
+    utility_score        REAL NOT NULL,
+    created_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_golden_exemplars_cat ON golden_exemplars(tenant_id, query_category);
 """
 
 # tenant_id + sha live together for dedupe lookups; SQLite has no composite

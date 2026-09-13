@@ -63,6 +63,56 @@ The system was built to run reliably with or without a live cloud AI connection:
                   context expand    support       contradiction    ACL at every
                                     check)         detection        retrieval stage
 ```
+In our Enterprise RAG Copilot for Call Reports, we have built a Multi-Agent Decision Intelligence Architecture composed of 11 specialized AI agents and autonomous agentic modules.
+
+Rather than relying on a single monolithic prompt, the system delegates tasks across four distinct operational layers:
+
+                      ┌──────────────────────────────────────────────┐
+                      │             Incoming User Query              │
+                      └──────────────────────┬───────────────────────┘
+                                             │
+             ┌───────────────────────────────┴───────────────────────────────┐
+             ▼                                                               ▼
+   [1. Query Router Agent]                                        [2. Query Rewrite Agent]
+   Classifies intent & strategy                                   Expands aliases & terms
+             │                                                               │
+             └───────────────────────────────┬───────────────────────────────┘
+                                             ▼
+                      ┌──────────────────────────────────────────────┐
+                      │    [3. Bounded Agentic Retrieval Agent]      │
+                      │   Iterative passes (1-3) filling data gaps   │
+                      └──────┬───────────────────────┬───────────────┘
+                             │                       │
+                             ▼                       ▼
+            [4. GraphRAG Traversal Agent]  [5. Multimodal Vision Agent]
+            Cross-document entity graph     Figure & chart understanding
+                             │                       │
+                             └───────────────┬───────┘
+                                             ▼
+                      ┌──────────────────────────────────────────────┐
+                      │   [6. Temporal & Contradiction Agent]        │
+                      │   Resolves date orderings & negation flips   │
+                      └──────────────────────┬───────────────────────┘
+                                             ▼
+                      ┌──────────────────────────────────────────────┐
+                      │    [7. Structured Generation Copilot Agent]  │
+                      │    Multi-turn conversation + few-shot exemplars
+                      └──────────────────────┬───────────────────────┘
+                                             ▼
+                      ┌──────────────────────────────────────────────┐
+                      │  [8. Citation Validation Guardrail Agent]    │
+                      │  Existence check + semantic support check    │
+                      └──────────────────────┬───────────────────────┘
+                                             │
+              ┌──────────────────────────────┴──────────────────────────────┐
+              ▼                                                             ▼
+   [9. PII Guardrail Agent]                                      [10. Self-Learning Agent]
+   Redacts sensitive data                                        Adjusts chunk utility weights
+                                                                            │
+                                                                 [11. Lexicon Miner Agent]
+                                                                 Discovers acronyms & jargon
+
+
 
 **Core data flow:** a PDF is extracted into layout-aware elements, then split into 350–500 token hierarchical chunks — tables and figures kept as their own chunks, never crossing a section boundary. Chunks are embedded and indexed into a hybrid FTS5 + hnswlib store. A query goes through rewriting/aliasing, lexical + vector retrieval, RRF fusion, cross-encoder reranking, diversification, and parent-child context expansion. ACL filtering happens as a SQL predicate before anything reaches generation. Generation produces a structured, forced-JSON answer; every citation is checked twice — does the chunk exist, and does its content actually support the claim — before the answer is streamed to the UI as SSE events, with failing citations stripped rather than passed through.
 

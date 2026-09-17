@@ -1,15 +1,17 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { UploadCloud, FileText, X, Loader2 } from "lucide-react";
+import { UploadCloud, FileText, X, Loader2, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadDocuments, type UploadResultItem } from "@/lib/api";
+import { useAuth } from "@/components/auth/auth-context";
 
 interface UploadPanelProps {
   onUploaded: () => void;
 }
 
 export function UploadPanel({ onUploaded }: UploadPanelProps) {
+  const { isAuthenticated, openAuthModal } = useAuth();
   const [dragOver, setDragOver] = useState(false);
   const [pending, setPending] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
@@ -41,6 +43,14 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
 
   const submit = async () => {
     if (pending.length === 0) return;
+
+    if (!isAuthenticated) {
+      openAuthModal("Sign in to index confidential call report PDFs into your organization vault", () => {
+        submit();
+      });
+      return;
+    }
+
     setBusy(true);
     try {
       const res = await uploadDocuments(pending, {
@@ -103,31 +113,46 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
       </div>
 
       {pending.length > 0 && (
-        <div className="mt-4 space-y-1.5">
-          {pending.map((f, i) => (
-            <div
-              key={`${f.name}-${i}`}
-              className="flex items-center justify-between rounded-lg border border-border-subtle bg-elevated/60 px-3 py-2"
+        <div className="mt-4 rounded-xl border border-border-subtle bg-elevated/40 p-3">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-border-subtle text-[11px]">
+            <span className="font-medium text-text">
+              Selected Documents ({pending.length})
+            </span>
+            <button
+              onClick={() => setPending([])}
+              className="text-[11px] text-error hover:underline transition-colors cursor-pointer"
             >
-              <div className="flex items-center gap-2 overflow-hidden">
-                <FileText className="h-3.5 w-3.5 shrink-0 text-text-faint" strokeWidth={1.75} />
-                <span className="truncate text-[12px] text-text-muted">{f.name}</span>
-                <span className="shrink-0 font-mono text-[10px] text-text-faint">
-                  {(f.size / 1024).toFixed(0)} KB
-                </span>
-              </div>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removePending(i);
-                }}
-                aria-label={`Remove ${f.name}`}
-                className="rounded p-1 text-text-faint hover:bg-elevated-2 hover:text-text"
+              Clear all
+            </button>
+          </div>
+          <div className="space-y-1.5 max-h-48 overflow-y-auto">
+            {pending.map((f, i) => (
+              <div
+                key={`${f.name}-${i}`}
+                className="flex items-center justify-between rounded-lg border border-border-subtle bg-surface/80 px-3 py-2"
               >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <FileText className="h-3.5 w-3.5 shrink-0 text-primary" strokeWidth={1.75} />
+                  <span className="truncate text-[12px] text-text font-medium">{f.name}</span>
+                  <span className="shrink-0 font-mono text-[10px] text-text-faint">
+                    {(f.size / 1024).toFixed(0)} KB
+                  </span>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removePending(i);
+                  }}
+                  aria-label={`Delete ${f.name}`}
+                  className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-text-faint hover:bg-error/15 hover:text-error transition-all"
+                  title="Delete from upload queue"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

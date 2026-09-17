@@ -474,6 +474,71 @@ CREATE TABLE IF NOT EXISTS golden_exemplars (
 );
 
 CREATE INDEX IF NOT EXISTS idx_golden_exemplars_cat ON golden_exemplars(tenant_id, query_category);
+
+-- Phase E Extension: Persistent Analyst & Tenant Memory
+CREATE TABLE IF NOT EXISTS user_memories (
+    memory_id            TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    user_id              TEXT NOT NULL,
+    category             TEXT NOT NULL,       -- 'analyst_preference' | 'risk_tolerance' | 'sector_focus' | 'reporting_style'
+    key                  TEXT NOT NULL,
+    content              TEXT NOT NULL,
+    confidence           REAL DEFAULT 1.0,
+    source               TEXT NOT NULL,       -- 'inferred' | 'explicit'
+    access_count         INTEGER DEFAULT 0,
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL,
+    UNIQUE(tenant_id, user_id, category, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_memories_lookup ON user_memories(tenant_id, user_id);
+
+CREATE TABLE IF NOT EXISTS tenant_memories (
+    memory_id            TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    category             TEXT NOT NULL,       -- 'credit_policy' | 'accounting_standards' | 'covenant_guidelines' | 'compliance_mandate'
+    title                TEXT NOT NULL,
+    content              TEXT NOT NULL,
+    status               TEXT NOT NULL DEFAULT 'active',
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL,
+    UNIQUE(tenant_id, category, title)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_memories ON tenant_memories(tenant_id, status);
+
+-- Phase E Extension: Procedural Financial Skills
+CREATE TABLE IF NOT EXISTS procedural_skills (
+    skill_id             TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    name                 TEXT NOT NULL,
+    description          TEXT NOT NULL,
+    category             TEXT NOT NULL,       -- 'covenant_audit' | 'temporal_comparison' | 'debt_analysis' | 'risk_synthesis'
+    trigger_phrases      TEXT NOT NULL,       -- JSON array of trigger strings
+    procedure_markdown   TEXT NOT NULL,       -- Step-by-step procedural analysis instructions
+    verification_rule    TEXT,                -- Rule to verify output accuracy
+    use_count            INTEGER DEFAULT 0,
+    state                TEXT NOT NULL DEFAULT 'active', -- 'active' | 'stale' | 'archived'
+    created_by           TEXT NOT NULL DEFAULT 'system',
+    last_used_at         TEXT,
+    created_at           TEXT NOT NULL,
+    updated_at           TEXT NOT NULL,
+    UNIQUE(tenant_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_procedural_skills ON procedural_skills(tenant_id, state);
+
+-- Phase E Extension: Autonomous Curator Audit Trail
+CREATE TABLE IF NOT EXISTS curator_audit_log (
+    run_id               TEXT PRIMARY KEY,
+    tenant_id            TEXT NOT NULL,
+    triggered_by         TEXT NOT NULL,       -- 'auto_inactivity' | 'manual_admin'
+    actions_summary      TEXT NOT NULL,       -- JSON summary
+    duration_ms          REAL NOT NULL,
+    created_at           TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_curator_audit ON curator_audit_log(tenant_id, created_at);
 """
 
 # tenant_id + sha live together for dedupe lookups; SQLite has no composite

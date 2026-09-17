@@ -1,60 +1,95 @@
 "use client";
 
-import { Search, Bell, CircleUser, Sparkles, Terminal } from "lucide-react";
+import React from "react";
+import { usePathname } from "next/navigation";
+import { Search, LogIn, Glasses } from "lucide-react";
+import { useAuth } from "@/components/auth/auth-context";
+import { cn } from "@/lib/utils";
 
 export function Topbar() {
+  const pathname = usePathname();
+  const { role, isAuthenticated, openAuthModal, isIncognito, toggleIncognito } = useAuth();
+  const isCopilot = pathname === "/copilot";
+
+  const planBadgeText =
+    role === "super_admin"
+      ? "Super Admin · Platform Core"
+      : isAuthenticated
+      ? "Institutional Suite · All Features Active"
+      : "Free Discovery · Sign In";
+
   return (
-    <header className="flex h-16 shrink-0 items-center justify-between border-b border-border-subtle/80 bg-surface/60 backdrop-blur-xl px-6 relative z-10">
-      {/* Left: Zero-G Telemetry HUD cluster */}
-      <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 rounded-full border border-white/10 bg-elevated/70 px-3 py-1 shadow-[0_0_15px_rgba(79,209,197,0.06)]">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-success shadow-[0_0_6px_rgba(110,231,168,0.8)]" />
-          </span>
-          <span className="font-mono text-[11px] font-bold text-text-muted tracking-tight">
-            ZERO-G RUNTIME ACTIVE
-          </span>
-        </div>
-
-        <div className="hidden md:flex items-center gap-2 font-mono text-[10px] text-text-faint">
-          <span className="rounded border border-evidence/20 bg-evidence/8 px-2 py-0.5 text-evidence font-medium">
-            ORBIT: SYNCHRONIZED
-          </span>
-          <span className="hidden xl:inline text-text-faint/60">·</span>
-          <span className="hidden xl:inline text-text-faint">
-            LATENCY: <span className="text-text-muted">14ms</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Right: Quick actions & user info */}
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#06080F]/90 backdrop-blur-md px-6 relative z-10 select-none">
+      {/* Left: Perplexity-style Plan Chip */}
       <div className="flex items-center gap-3">
         <button
-          className="group flex items-center gap-2.5 rounded-xl border border-white/10 bg-elevated/50 backdrop-blur-md px-3.5 py-1.5 text-[12px] text-text-muted hover:text-text hover:border-evidence/40 hover:shadow-[0_0_15px_rgba(79,209,197,0.12)] transition-all duration-200"
-          aria-label="Search"
+          onClick={() => {
+            if (!isAuthenticated) openAuthModal("Upgrade to Institutional Plan");
+          }}
+          className="flex items-center gap-1.5 px-3 py-1 rounded-full border border-border bg-surface/80 hover:border-evidence/40 text-[12px] text-text-muted hover:text-white transition-all cursor-pointer"
         >
-          <Search className="h-3.5 w-3.5 text-text-faint group-hover:text-evidence transition-colors" />
-          <span>Quick command search</span>
-          <kbd className="ml-2 rounded border border-white/10 bg-elevated-2/80 px-1.5 py-0.5 font-mono text-[10px] text-text-faint group-hover:text-text-muted">
-            ⌘K
+          <span className="font-medium text-white">{planBadgeText.split("·")[0].trim()}</span>
+          {planBadgeText.includes("·") && (
+            <>
+              <span className="text-[#52525b]">·</span>
+              <span className="text-text-faint">{planBadgeText.split("·")[1].trim()}</span>
+            </>
+          )}
+        </button>
+
+        {/* Incognito badge shown ONLY when in Copilot */}
+        {isCopilot && isIncognito && (
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-evidence/40 bg-evidence/10 text-evidence text-[11px] font-mono font-medium shadow-[0_0_10px_rgba(79,209,197,0.25)] animate-pulse">
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
+            <span>INCOGNITO ACTIVE</span>
+          </div>
+        )}
+      </div>
+
+      {/* Right: Controls & Scoped Incognito Switch */}
+      <div className="flex items-center gap-2">
+        <button
+          className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-surface/60 hover:bg-elevated text-[12px] text-text-faint hover:text-white transition-colors cursor-pointer"
+          onClick={() => {
+            const input = document.querySelector('textarea, input[type="text"]') as HTMLElement;
+            input?.focus();
+          }}
+        >
+          <Search className="h-3.5 w-3.5" />
+          <span>Ask anything</span>
+          <kbd className="text-[10px] font-mono text-text-faint border border-border-subtle rounded px-1">
+            /
           </kbd>
         </button>
 
-        <button
-          className="relative flex h-8 w-8 items-center justify-center rounded-xl border border-white/5 bg-elevated/40 text-text-faint hover:text-text hover:bg-elevated hover:border-white/15 transition-all"
-          aria-label="Notifications"
-        >
-          <Bell className="h-3.5 w-3.5" strokeWidth={1.75} />
-          <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_6px_rgba(240,168,87,0.8)]" />
-        </button>
+        {/* Incognito Quick Toggle: VISIBLE ONLY ON COPILOT */}
+        {isCopilot && (
+          <button
+            onClick={toggleIncognito}
+            title={isIncognito ? "Incognito Session Active · Click to exit" : "Switch to Incognito Session"}
+            className={cn(
+              "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-all cursor-pointer border",
+              isIncognito
+                ? "bg-evidence/15 text-evidence border-evidence/40 shadow-[0_0_12px_rgba(79,209,197,0.3)]"
+                : "text-text-muted hover:text-white hover:bg-elevated/60 border-transparent"
+            )}
+          >
+            <Glasses className="h-4 w-4" />
+            <span className="font-mono text-[11px] font-medium hidden md:inline">
+              Incognito
+            </span>
+          </button>
+        )}
 
-        <button
-          className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-elevated/40 text-text-muted hover:text-text hover:border-evidence/40 hover:shadow-[0_0_12px_rgba(79,209,197,0.2)] transition-all"
-          aria-label="Account"
-        >
-          <CircleUser className="h-4.5 w-4.5" strokeWidth={1.75} />
-        </button>
+        {!isAuthenticated && (
+          <button
+            onClick={() => openAuthModal("Sign in to your institutional account")}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-[12px] font-medium text-white transition-colors cursor-pointer"
+          >
+            <LogIn className="h-3.5 w-3.5" />
+            <span>Sign in</span>
+          </button>
+        )}
       </div>
     </header>
   );

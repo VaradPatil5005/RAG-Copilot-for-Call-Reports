@@ -57,68 +57,106 @@ export function PipelineStatusPanel() {
   ).length;
 
   return (
-    <div className="lg:col-span-2 rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] hover:border-white/14 transition-all">
-      <div className="flex items-center justify-between">
+    <div className="lg:col-span-2 relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all">
+      {/* Top Specular Laser Line */}
+      <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+      
+      {/* Subtle Background Radial Glow */}
+      <div className="pointer-events-none absolute -top-24 -left-24 h-64 w-64 rounded-full bg-evidence/10 blur-3xl opacity-40" />
+
+      <div className="flex items-center justify-between relative z-10">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
-            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-text-faint">
-              SYS.PIPELINE // INGESTION MESH
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_8px_rgba(79,209,197,0.9)] animate-pulse" />
+            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
+              SYS.PIPELINE // QUANTUM INGESTION MESH
             </p>
           </div>
-          <p className="mt-1 font-display text-base font-bold text-text">
-            Quantum Document Processing Pipeline
+          <p className="mt-1 font-display text-base font-bold text-white tracking-tight">
+            Autonomous Document Processing Stream
           </p>
         </div>
         {documents.length > 0 && (
-          <span className="font-mono text-[11px] rounded-full border border-evidence/25 bg-evidence/10 px-3 py-1 text-evidence font-medium shadow-[0_0_10px_rgba(79,209,197,0.15)]">
-            {documents.length} ingested
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] rounded-full border border-evidence/30 bg-evidence/10 px-3 py-1 text-evidence font-medium shadow-[0_0_12px_rgba(79,209,197,0.2)]">
+              <span className="h-1.5 w-1.5 rounded-full bg-evidence animate-pulse" />
+              {documents.length} ingested · 100% indexed
+            </span>
+          </div>
         )}
       </div>
 
-      <div className="mt-6 flex items-center gap-1 overflow-x-auto pb-3">
+      {/* Optical Quantum Pipeline Stream */}
+      <div className="mt-8 flex items-center gap-0 overflow-x-auto pb-4 relative z-10 scrollbar-none">
         {PIPELINE_STAGES.map((stage, i) => {
           const count = countAtOrPast(i);
           const active = count > 0;
           return (
             <div key={stage.key} className="flex items-center shrink-0">
-              <div className="flex flex-col items-center gap-2 min-w-[96px]">
-                <div
-                  className={cn(
-                    "flex h-9 w-9 items-center justify-center rounded-xl border text-[11px] font-mono font-bold transition-all duration-300",
-                    active
-                      ? "border-evidence/50 bg-evidence/15 text-evidence shadow-[0_0_15px_rgba(79,209,197,0.3)]"
-                      : "border-white/8 bg-elevated-2/60 text-text-faint"
+              <div className="flex flex-col items-center gap-2.5 min-w-[100px]">
+                {/* Glowing Optical Aperture Node (No chunky boxes!) */}
+                <div className="relative flex items-center justify-center">
+                  {active ? (
+                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-evidence/15 border border-evidence shadow-[0_0_18px_rgba(79,209,197,0.6)]">
+                      <span className="absolute h-4 w-4 rounded-full bg-evidence/30 animate-ping" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_8px_#ffffff]" />
+                    </div>
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-500 font-mono text-[10px]">
+                      {i + 1}
+                    </div>
                   )}
-                >
-                  {active ? count : i + 1}
                 </div>
-                <span
-                  className={cn(
-                    "text-[10px] text-center leading-tight font-medium max-w-[85px]",
-                    active ? "text-text" : "text-text-faint"
+
+                {/* Stage Label & Micro Status */}
+                <div className="flex flex-col items-center text-center">
+                  <span
+                    className={cn(
+                      "text-[11px] leading-tight font-medium max-w-[90px] transition-colors",
+                      active ? "text-white" : "text-zinc-500"
+                    )}
+                  >
+                    {stage.label}
+                  </span>
+                  {active ? (
+                    <span className="mt-1 font-mono text-[9px] text-evidence font-semibold uppercase tracking-wider">
+                      {count} docs
+                    </span>
+                  ) : (
+                    <span className="mt-1 font-mono text-[9px] text-zinc-600 uppercase tracking-wider">
+                      Standby
+                    </span>
                   )}
-                >
-                  {stage.label}
-                </span>
+                </div>
               </div>
+
+              {/* Luminous Waveguide / Connecting Laser Track */}
               <div
                 className={cn(
-                  "h-0.5 w-5 shrink-0 mb-5 transition-colors",
-                  active ? "bg-evidence/40" : "bg-white/5"
+                  "h-[2px] w-6 shrink-0 -mt-6 transition-all duration-500",
+                  active
+                    ? "bg-gradient-to-r from-evidence via-cyan-400 to-evidence shadow-[0_0_10px_rgba(79,209,197,0.7)]"
+                    : "bg-white/[0.08]"
                 )}
               />
             </div>
           );
         })}
+
         {FUTURE_STAGES.map((label) => (
           <div key={label} className="flex items-center shrink-0">
-            <div className="flex flex-col items-center gap-2 min-w-[96px]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-dashed border-white/10 text-text-faint/70 bg-elevated/30">
-                <span className="text-[10px] font-mono font-bold">P3</span>
+            <div className="flex flex-col items-center gap-2.5 min-w-[100px]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-white/15 bg-white/[0.02] text-zinc-600 font-mono text-[10px]">
+                ✦
               </div>
-              <span className="text-[10px] text-center leading-tight text-text-faint/60 max-w-[85px]">{label}</span>
+              <div className="flex flex-col items-center text-center">
+                <span className="text-[11px] leading-tight font-medium max-w-[90px] text-zinc-500">
+                  {label}
+                </span>
+                <span className="mt-1 font-mono text-[9px] text-zinc-600 uppercase tracking-wider">
+                  Target
+                </span>
+              </div>
             </div>
           </div>
         ))}

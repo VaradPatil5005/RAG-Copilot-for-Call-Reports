@@ -41,16 +41,19 @@ export function SystemHealthPanel() {
       ];
 
   return (
-    <div className="rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] hover:border-white/14 transition-all">
-      <div className="flex items-center justify-between mb-4">
+    <div className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all">
+      {/* Top Specular Laser Line */}
+      <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-emerald-400/50 to-transparent" />
+
+      <div className="flex items-center justify-between mb-4 relative z-10">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
-            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-text-faint">
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_8px_rgba(79,209,197,0.9)] animate-pulse" />
+            <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
               SYS.TELEMETRY // CLUSTER
             </p>
           </div>
-          <p className="mt-1 font-display text-base font-bold text-text">Infrastructure Health</p>
+          <p className="mt-1 font-display text-base font-bold text-white tracking-tight">Infrastructure Telemetry</p>
         </div>
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-evidence/10 border border-evidence/25 text-evidence shadow-[0_0_12px_rgba(79,209,197,0.2)]">
           <Gauge className="h-4 w-4" strokeWidth={1.75} />

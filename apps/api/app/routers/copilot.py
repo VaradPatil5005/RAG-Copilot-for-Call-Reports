@@ -63,6 +63,7 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
     filters: ChatFiltersIn | None = None
     messages: list[ChatMessage] | None = None
+    is_incognito: bool | None = False
     # Phase 6.3: tenant_id/principals no longer accepted here -- both come
     # exclusively from the verified `identity` (see `auth.require_identity`).
     # See retrieval.py's SearchRequest docstring for the same change.

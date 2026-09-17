@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { listDocuments, type DocumentSummary } from "@/lib/api";
 import { UploadPanel } from "./upload-panel";
 import { DocumentsTable } from "./documents-table";
-import { DocumentDetailPanel } from "./document-detail";
+import { DocumentViewerModal } from "./document-viewer-modal";
 import { isActiveStatus } from "./status-badge";
 
 export function DocumentsWorkspace() {
@@ -18,10 +18,10 @@ export function DocumentsWorkspace() {
   const searchParams = useSearchParams();
 
   // Deep-link support: ?doc=<document_id> (e.g. from a Search result) opens
-  // that document's detail panel. Derived directly from the URL (no effect
-  // needed) with a manual selection/close taking precedence once the user
-  // interacts, so closing the panel doesn't immediately reopen it.
+  // that document's full viewer directly.
   const deepLinkDoc = searchParams.get("doc");
+  const deepLinkPageStr = searchParams.get("page");
+  const deepLinkPage = deepLinkPageStr ? parseInt(deepLinkPageStr, 10) : undefined;
   const selectedId = manualSelectedId ?? (deepLinkClosed ? null : deepLinkDoc);
 
   const selectDocument = useCallback((id: string | null) => {
@@ -74,10 +74,10 @@ export function DocumentsWorkspace() {
         loading={loading}
       />
       {selectedId && (
-        <DocumentDetailPanel
+        <DocumentViewerModal
           documentId={selectedId}
+          initialPage={deepLinkPage}
           onClose={() => selectDocument(null)}
-          onChanged={refresh}
         />
       )}
     </div>

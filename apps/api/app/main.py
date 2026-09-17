@@ -27,11 +27,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import db
 from app.routers import auth, copilot, decision_eval, documents, evaluation, graph, learning, observability, retrieval, system
 from app.services.pipeline import IngestionQueue
+from app.services import memory_manager, skill_manager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     db.init_db()
+    try:
+        memory_manager.seed_default_memories_if_empty()
+        skill_manager.seed_default_skills_if_empty()
+    except Exception as exc:
+        pass
     app.state.ingestion_queue = IngestionQueue()
     app.state.ingestion_queue.start()
     yield

@@ -14,7 +14,7 @@
  * itself offers.
  */
 
-import { Component, useState, type ReactNode } from "react";
+import { Component, useState, useEffect, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import {
   type CoreState,
@@ -59,7 +59,14 @@ class Canvas3DBoundary extends Component<
 }
 
 export function CopilotCorePanel({ stage }: { stage: CopilotStage | null }) {
-  const [webgl] = useState<boolean>(() => isWebGLAvailable());
+  const [mounted, setMounted] = useState(false);
+  const [webgl, setWebgl] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setWebgl(isWebGLAvailable());
+  }, []);
+
   const coreState: CoreState = stage ? STAGE_TO_CORE_STATE[stage] : "idle";
 
   return (
@@ -86,7 +93,7 @@ export function CopilotCorePanel({ stage }: { stage: CopilotStage | null }) {
       </div>
 
       <div className="relative flex-1 min-h-[160px]">
-        {webgl ? (
+        {mounted && webgl ? (
           <Canvas3DBoundary fallback={<AnimatedOrbFallback state={coreState} />}>
             <KnowledgeCore state={coreState} />
           </Canvas3DBoundary>

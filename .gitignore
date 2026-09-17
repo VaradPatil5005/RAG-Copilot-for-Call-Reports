@@ -18,12 +18,19 @@ venv/
 # OS
 .DS_Store
 
-# Local data (Phase 2+ ingestion substitutes for ADLS; Phase 3+ hybrid index)
+# Local data & databases
 apps/api/data/raw/*
 apps/api/data/derived/*
 apps/api/data/index/*
 apps/api/data/synthetic_corpus/*
-apps/api/data/metadata.sqlite3
+apps/api/data/*.sqlite3*
+apps/api/data/*.mp4
+apps/web/prisma/*.db*
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite3*
 !apps/api/data/raw/.gitkeep
 !apps/api/data/derived/.gitkeep
 !apps/api/data/index/.gitkeep

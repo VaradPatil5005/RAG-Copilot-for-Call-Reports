@@ -4,7 +4,7 @@ import random
 import string
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
 
 from app import db
@@ -398,6 +398,29 @@ def get_figure(
     if not path.exists():
         raise HTTPException(404, "Figure not found")
     return FileResponse(str(path))
+
+
+@router.get("/{document_id}/file")
+def get_document_file(
+    document_id: str,
+    version: int | None = None,
+    token: str | None = Query(default=None),
+    authorization: str | None = Header(default=None),
+):
+    """Serve the authentic source PDF for full document viewing and download."""
+    if token and not authorization:
+        authorization = f"Bearer {token}"
+    identity = auth.require_identity(authorization)
+    doc = _require_document_access(document_id, identity)
+    v = version or doc["current_version"]
+    path = storage.raw_dir(doc["tenant_id"], document_id, v) / "source.pdf"
+    if not path.exists():
+        raise HTTPException(404, "Source PDF file not found")
+    return FileResponse(
+        str(path),
+        media_type="application/pdf",
+        filename=doc.get("filename") or f"{document_id}.pdf",
+    )
 
 
 @router.patch("/{document_id}")

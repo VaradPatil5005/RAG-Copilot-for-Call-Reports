@@ -298,7 +298,7 @@ def ai_insights(limit: int = 20) -> dict:
     risk_edges = db.rows_to_list(
         conn.execute(
             """
-            SELECT d.document_id, d.filename, d.customer_name, c.content
+            SELECT ge.edge_id, d.document_id, d.filename, d.customer_name, c.content
             FROM graph_edges ge
             JOIN documents d ON d.document_id = ge.source_document_id
             LEFT JOIN chunks c ON c.chunk_id = ge.source_chunk_id
@@ -318,8 +318,9 @@ def ai_insights(limit: int = 20) -> dict:
             and not ln.startswith("Risks")
         ]
         desc = " ".join(lines)
+        edge_suffix = r.get("edge_id") or ""
         items.append({
-            "id": f"risk-{r['document_id']}",
+            "id": f"risk-{r['document_id']}-{edge_suffix}" if edge_suffix else f"risk-{r['document_id']}",
             "type": "risk",
             "category": "Compliance & Operational",
             "severity": "high",
@@ -349,13 +350,13 @@ def ai_insights(limit: int = 20) -> dict:
             continue
         try:
             tdata = db.loads(raw_json) or {}
-            for row in tdata.get("rows", []):
+            for row_idx, row in enumerate(tdata.get("rows", [])):
                 if len(row) >= 4 and "risk" in str(row[1]).lower():
                     desc = str(row[2]).replace("\n", " ").strip()
                     owner = str(row[4]).replace("\n", " ").strip() if len(row) > 4 else "Project Team"
                     clean_cust = rt.get("customer_name") or rt["filename"].replace("_Call_Report.pdf", "").replace("_", " ").lstrip("0123456789 ")
                     items.append({
-                        "id": f"risk-{rt['document_id']}-{str(row[0])[:8]}",
+                        "id": f"risk-{rt['document_id']}-{row_idx}-{str(row[0])[:8]}",
                         "type": "risk",
                         "category": "Operational Risk",
                         "severity": str(row[3]).lower() if len(row) > 3 else "high",
@@ -387,12 +388,12 @@ def ai_insights(limit: int = 20) -> dict:
             continue
         try:
             tdata = db.loads(raw_json) or {}
-            for row in tdata.get("rows", []):
+            for row_idx, row in enumerate(tdata.get("rows", [])):
                 if len(row) >= 3:
                     clean_cust = at.get("customer_name") or at["filename"].replace("_Call_Report.pdf", "").replace("_", " ").lstrip("0123456789 ")
                     status = str(row[3]) if len(row) > 3 else "Open"
                     items.append({
-                        "id": f"action-{at['document_id']}-{str(row[0])[:8]}",
+                        "id": f"action-{at['document_id']}-{row_idx}-{str(row[0])[:8]}",
                         "type": "action",
                         "category": "Action Item",
                         "severity": "medium",

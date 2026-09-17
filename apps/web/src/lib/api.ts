@@ -79,6 +79,7 @@ export interface ElementItem {
   figure_path: string | null;
   ocr: boolean;
   include_in_search: boolean;
+  description?: string | null;
 }
 
 export interface DocumentStats {
@@ -211,6 +212,23 @@ export async function getElements(
 
 export function figureUrl(documentId: string, figurePath: string): string {
   return `${API_BASE}/documents/${documentId}/figures/${figurePath}`;
+}
+
+export async function getDocumentPdfBlob(documentId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/documents/${documentId}/file`, {
+    cache: "no-store",
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text || `Failed to load document PDF (${res.status})`);
+  }
+  return res.blob();
+}
+
+export function documentFileUrl(documentId: string, token?: string): string {
+  const qs = token ? `?token=${encodeURIComponent(token)}` : "";
+  return `${API_BASE}/documents/${documentId}/file${qs}`;
 }
 
 export async function uploadDocuments(
@@ -399,6 +417,7 @@ export async function streamChat(
     messages?: ChatMessageIn[];
     onEvent?: (event: ChatStreamEvent) => void;
     signal?: AbortSignal;
+    isIncognito?: boolean;
   } = {}
 ): Promise<ChatFinalEvent> {
   const res = await fetch(`${API_BASE}/chat`, {
@@ -409,6 +428,7 @@ export async function streamChat(
       conversation_id: opts.conversationId ?? null,
       filters: opts.filters ?? null,
       messages: opts.messages ?? null,
+      is_incognito: opts.isIncognito ?? false,
     }),
     signal: opts.signal,
   });
@@ -830,6 +850,93 @@ export interface LearningStatus {
     pending_terms: number;
   };
   exemplars_count: number;
+  memories?: {
+    user_memories_count: number;
+    tenant_memories_count: number;
+  };
+  skills?: {
+    total_skills: number;
+    active_skills: number;
+    stale_skills: number;
+    archived_skills: number;
+  };
+  curator?: {
+    total_cycles: number;
+    last_run: string | null;
+  };
+}
+
+export interface UserMemoryItem {
+  memory_id: string;
+  tenant_id: string;
+  user_id: string;
+  category: string;
+  key: string;
+  content: string;
+  confidence: number;
+  source: string;
+  access_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TenantMemoryItem {
+  memory_id: string;
+  tenant_id: string;
+  category: string;
+  title: string;
+  content: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MemoriesResponse {
+  user_memories: UserMemoryItem[];
+  tenant_memories: TenantMemoryItem[];
+}
+
+export interface ProceduralSkillItem {
+  skill_id: string;
+  tenant_id: string;
+  name: string;
+  description: string;
+  category: string;
+  trigger_phrases: string[];
+  procedure_markdown: string;
+  verification_rule?: string | null;
+  use_count: number;
+  state: "active" | "stale" | "archived";
+  created_by: string;
+  last_used_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CuratorAuditLogItem {
+  run_id: string;
+  tenant_id: string;
+  triggered_by: string;
+  actions_summary: Record<string, unknown>;
+  duration_ms: number;
+  created_at: string;
+}
+
+export interface CuratorStatusResponse {
+  tenant_id: string;
+  total_runs?: number;
+  total_cycles?: number;
+  last_run?: string | null;
+  latest_run?: {
+    run_id: string;
+    triggered_by: string;
+    actions: Record<string, unknown>;
+    duration_ms: number;
+    created_at: string;
+  } | null;
+  latest_actions?: Record<string, unknown> | null;
+  recent_runs?: CuratorAuditLogItem[];
+  audit_logs?: CuratorAuditLogItem[];
 }
 
 export interface LearnedLexiconItem {
@@ -923,6 +1030,122 @@ export async function getGoldenExemplars(category?: string): Promise<{ exemplars
 export async function getChunkUtilityScores(limit = 50): Promise<{ scores: ChunkUtilityScore[] }> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${API_BASE}/learning/utility-scores?limit=${limit}`, { headers, cache: "no-store" });
+  return jsonOrThrow(res);
+}
+
+// --------------------------------------------------------------------------
+// Multi-Tier Persistent Memory (Phase E Extension)
+// --------------------------------------------------------------------------
+
+export async function getMemories(): Promise<MemoriesResponse> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/memories`, { headers, cache: "no-store" });
+  return jsonOrThrow<MemoriesResponse>(res);
+}
+
+export async function createUserMemory(payload: {
+  category: string;
+  key: string;
+  content: string;
+  confidence?: number;
+  source?: string;
+}): Promise<{ memory_id: string; status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/memories/user`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function deleteUserMemory(memoryId: string): Promise<{ status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/memories/user/${encodeURIComponent(memoryId)}`, {
+    method: "DELETE",
+    headers,
+  });
+  return jsonOrThrow(res);
+}
+
+export async function createTenantMemory(payload: {
+  category: string;
+  title: string;
+  content: string;
+  status?: string;
+}): Promise<{ memory_id: string; status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/memories/tenant`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function deleteTenantMemory(memoryId: string): Promise<{ status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/memories/tenant/${encodeURIComponent(memoryId)}`, {
+    method: "DELETE",
+    headers,
+  });
+  return jsonOrThrow(res);
+}
+
+// --------------------------------------------------------------------------
+// Procedural Financial Skills (Phase E Extension)
+// --------------------------------------------------------------------------
+
+export async function getSkills(state?: string): Promise<{ skills: ProceduralSkillItem[]; count: number }> {
+  const headers = await getAuthHeaders();
+  const url = state ? `${API_BASE}/learning/skills?state=${encodeURIComponent(state)}` : `${API_BASE}/learning/skills`;
+  const res = await fetch(url, { headers, cache: "no-store" });
+  return jsonOrThrow<{ skills: ProceduralSkillItem[]; count: number }>(res);
+}
+
+export async function createSkill(payload: {
+  name: string;
+  description: string;
+  category: string;
+  trigger_phrases: string[];
+  procedure_markdown: string;
+  verification_rule?: string;
+}): Promise<{ skill_id: string; status: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/skills`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  return jsonOrThrow(res);
+}
+
+export async function updateSkillState(skillId: string, state: "active" | "stale" | "archived"): Promise<{ status: string; state: string }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/skills/${encodeURIComponent(skillId)}/state`, {
+    method: "PATCH",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify({ state }),
+  });
+  return jsonOrThrow(res);
+}
+
+// --------------------------------------------------------------------------
+// Autonomous Knowledge Curator (Phase E Extension)
+// --------------------------------------------------------------------------
+
+export async function getCuratorStatus(): Promise<CuratorStatusResponse> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/curator/status`, { headers, cache: "no-store" });
+  return jsonOrThrow<CuratorStatusResponse>(res);
+}
+
+export async function runCuratorCycle(): Promise<{ status: string; actions_summary: Record<string, unknown> }> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${API_BASE}/learning/curator/run`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+  });
   return jsonOrThrow(res);
 }
 

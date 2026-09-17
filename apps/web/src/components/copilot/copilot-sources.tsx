@@ -21,6 +21,7 @@ interface SourceCardProps {
   traceId?: string;
   isHighlighted: boolean;
   onHover: (index: number | null) => void;
+  onOpenDocument?: (docId: string, page?: number, snippet?: string) => void;
 }
 
 function SourceCard({
@@ -30,6 +31,7 @@ function SourceCard({
   traceId,
   isHighlighted,
   onHover,
+  onOpenDocument,
 }: SourceCardProps) {
   const handleClick = () => {
     if (traceId && citation.chunk_id) {
@@ -40,6 +42,9 @@ function SourceCard({
         page_number: citation.page,
         interaction_type: "click",
       }).catch(() => {});
+    }
+    if (onOpenDocument) {
+      onOpenDocument(citation.document_id, citation.page ?? undefined, evidence?.snippet);
     }
   };
 
@@ -54,17 +59,17 @@ function SourceCard({
     : null;
 
   return (
-    <Link
-      href={`/documents?doc=${encodeURIComponent(citation.document_id)}&page=${citation.page ?? ""}`}
+    <button
+      type="button"
       onClick={handleClick}
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(null)}
       id={`source-card-${index}`}
       className={cn(
-        "group block rounded-xl border p-3.5 transition-all duration-200",
+        "group block w-full text-left rounded-xl border p-3.5 transition-all duration-200 cursor-pointer",
         isHighlighted
-          ? "border-evidence/50 bg-evidence/8 shadow-[0_0_20px_rgba(79,209,197,0.08)]"
-          : "border-border-subtle bg-elevated/30 hover:border-border hover:bg-elevated/50"
+          ? "border-white/30 bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+          : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05]"
       )}
     >
       <div className="flex items-start gap-3">
@@ -73,8 +78,8 @@ function SourceCard({
           className={cn(
             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold transition-colors",
             isHighlighted
-              ? "bg-evidence/20 text-evidence"
-              : "bg-elevated-2 text-text-faint group-hover:text-text-muted"
+              ? "bg-white text-black"
+              : "bg-white/[0.06] text-[#71717a] group-hover:text-white"
           )}
         >
           {index + 1}
@@ -86,7 +91,7 @@ function SourceCard({
             <FileText
               className={cn(
                 "h-3.5 w-3.5 shrink-0 transition-colors",
-                isHighlighted ? "text-evidence" : "text-text-faint"
+                isHighlighted ? "text-white" : "text-text-faint"
               )}
               strokeWidth={1.75}
             />
@@ -119,7 +124,7 @@ function SourceCard({
           )}
         </div>
       </div>
-    </Link>
+    </button>
   );
 }
 
@@ -129,6 +134,7 @@ interface CopilotSourcesProps {
   traceId?: string;
   highlightedIndex: number | null;
   onHoverSource: (index: number | null) => void;
+  onOpenDocument?: (docId: string, page?: number, snippet?: string) => void;
 }
 
 export function CopilotSources({
@@ -137,6 +143,7 @@ export function CopilotSources({
   traceId,
   highlightedIndex,
   onHoverSource,
+  onOpenDocument,
 }: CopilotSourcesProps) {
   if (citations.length === 0) {
     return (
@@ -176,6 +183,7 @@ export function CopilotSources({
             traceId={traceId}
             isHighlighted={highlightedIndex === i}
             onHover={onHoverSource}
+            onOpenDocument={onOpenDocument}
           />
         ))}
       </div>

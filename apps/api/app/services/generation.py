@@ -764,7 +764,7 @@ def generate_structured_answer(
     )
 
     # Phase E (Self-Learning Decision Intelligence Copilot, additive):
-    # Dynamically inject relevant, verified few-shot exemplars for complex queries.
+    # 1. Dynamically inject relevant, verified few-shot exemplars for complex queries.
     if query_category and tenant_id:
         try:
             from app.services import learning
@@ -781,6 +781,30 @@ def generate_structured_answer(
                 )
         except Exception as exc:  # noqa: BLE001
             logger.debug("Failed to inject exemplar (non-fatal): %s", exc)
+
+    # 2. Inject matched procedural financial skills (covenant audit, debt trajectory, etc.)
+    if tenant_id:
+        try:
+            from app.services import skill_manager
+
+            matched_skill = skill_manager.match_skill_for_query(query, tenant_id)
+            if matched_skill:
+                skill_block = skill_manager.format_skill_for_prompt(matched_skill)
+                user_prompt = skill_block + "\n" + user_prompt
+                skill_manager.record_skill_usage(matched_skill["skill_id"], tenant_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to match procedural skill (non-fatal): %s", exc)
+
+    # 3. Inject persistent analyst preferences and enterprise credit policy memory
+    if tenant_id:
+        try:
+            from app.services import memory_manager
+
+            memory_block = memory_manager.format_memories_for_prompt(tenant_id, user_id="web-ui", query=query)
+            if memory_block:
+                user_prompt = memory_block + "\n" + user_prompt
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Failed to inject persistent memory (non-fatal): %s", exc)
 
     try:
         raw = provider.generate(SYSTEM_PROMPT, user_prompt, stream=False)

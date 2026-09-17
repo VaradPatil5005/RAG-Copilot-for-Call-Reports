@@ -52,9 +52,12 @@ export function AIInsightsPanel() {
   const marketCount = insights.filter((i) => i.type === "market").length;
 
   return (
-    <div className="flex flex-col rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-6 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] hover:border-white/14 transition-all h-[460px]">
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all h-[460px]">
+      {/* Top Specular Laser Line */}
+      <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
+
       {/* Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-border-subtle/40">
+      <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary shadow-[0_0_12px_rgba(240,168,87,0.2)]">
             <Sparkles className="h-4 w-4" strokeWidth={1.75} />
@@ -76,7 +79,7 @@ export function AIInsightsPanel() {
             onClick={fetchInsights}
             disabled={loading}
             title="Refresh Insights"
-            className="p-1.5 rounded-lg border border-border-subtle hover:bg-elevated text-text-faint hover:text-text transition"
+            className="p-1.5 rounded-lg border border-border-subtle hover:bg-elevated text-text-faint hover:text-text transition cursor-pointer"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
           </button>
@@ -88,7 +91,7 @@ export function AIInsightsPanel() {
         <button
           onClick={() => setFilter("all")}
           className={cn(
-            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition",
+            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition cursor-pointer",
             filter === "all"
               ? "bg-primary/20 text-primary border border-primary/30"
               : "text-text-muted hover:text-text hover:bg-elevated/50"
@@ -99,7 +102,7 @@ export function AIInsightsPanel() {
         <button
           onClick={() => setFilter("risk")}
           className={cn(
-            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition",
+            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition cursor-pointer",
             filter === "risk"
               ? "bg-error/20 text-error border border-error/30"
               : "text-text-muted hover:text-text hover:bg-elevated/50"
@@ -110,7 +113,7 @@ export function AIInsightsPanel() {
         <button
           onClick={() => setFilter("action")}
           className={cn(
-            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition",
+            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition cursor-pointer",
             filter === "action"
               ? "bg-evidence/20 text-evidence border border-evidence/30"
               : "text-text-muted hover:text-text hover:bg-elevated/50"
@@ -121,7 +124,7 @@ export function AIInsightsPanel() {
         <button
           onClick={() => setFilter("market")}
           className={cn(
-            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition",
+            "px-2.5 py-1 rounded-lg text-[11px] font-mono font-medium transition cursor-pointer",
             filter === "market"
               ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
               : "text-text-muted hover:text-text hover:bg-elevated/50"
@@ -141,9 +144,9 @@ export function AIInsightsPanel() {
             </p>
           </div>
         ) : (
-          filteredInsights.map((item) => (
+          filteredInsights.map((item, idx) => (
             <div
-              key={item.id}
+              key={item.id ? `${item.id}-${idx}` : `insight-${idx}`}
               className="group rounded-xl border border-white/6 bg-elevated/40 hover:bg-elevated/70 p-3.5 transition-all duration-200 hover:border-white/12"
             >
               <div className="flex items-start justify-between gap-2">

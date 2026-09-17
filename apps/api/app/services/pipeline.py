@@ -78,6 +78,20 @@ class IngestionQueue:
         for _ in range(WORKER_COUNT):
             self._workers.append(loop.create_task(self._worker_loop()))
         logger.info("Ingestion workers started (%d)", WORKER_COUNT)
+        # Recover any documents interrupted in an active stage across server restarts or reloads
+        try:
+            conn = db.get_connection()
+            interrupted = db.rows_to_list(
+                conn.execute(
+                    "SELECT document_id, version FROM document_versions "
+                    "WHERE status NOT IN ('completed', 'failed', 'dead_lettered', 'quarantined', 'duplicate')"
+                ).fetchall()
+            )
+            for r in interrupted:
+                logger.info("Re-enqueuing interrupted document %s v%d", r["document_id"], r["version"])
+                self.queue.put_nowait((r["document_id"], r["version"]))
+        except Exception:
+            logger.exception("Failed to re-enqueue interrupted documents on startup")
 
     async def stop(self) -> None:
         for w in self._workers:

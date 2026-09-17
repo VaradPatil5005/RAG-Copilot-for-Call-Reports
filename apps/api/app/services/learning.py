@@ -263,6 +263,13 @@ def record_feedback(
                 utility_score=1.1,
             )
 
+            # Autonomous Skill Synthesis: synthesize a repeatable procedural skill
+            try:
+                from app.services import skill_manager
+                skill_manager.synthesize_skill_from_trace(trace_id, tenant_id)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Failed to synthesize procedural skill: %s", exc)
+
     return {"status": "ok", "trace_id": trace_id, "rating": rating}
 
 

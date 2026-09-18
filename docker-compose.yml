@@ -9,6 +9,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      - PORT=8000
       - LLM_PROVIDER=auto
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}

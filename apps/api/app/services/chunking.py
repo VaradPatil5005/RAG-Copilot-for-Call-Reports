@@ -81,6 +81,22 @@ class _Section:
     elements: list[dict[str, Any]] = field(default_factory=list)
 
 
+_BOILERPLATE_SECTION_KEYWORDS = (
+    "suggested retrieval",
+    "retrieval tests",
+    "retrieval queries",
+    "source note",
+    "synthetic test data",
+)
+
+
+def _is_boilerplate_section(path: list[str]) -> bool:
+    if not path:
+        return False
+    leaf = path[-1].lower()
+    return any(b in leaf for b in _BOILERPLATE_SECTION_KEYWORDS)
+
+
 def _group_into_sections(document_id: str, version: int, elements: list[dict[str, Any]]) -> list[_Section]:
     """Elements arrive in reading order with a `section_path` already
     computed by extraction.py. Consecutive elements sharing the exact same
@@ -93,6 +109,8 @@ def _group_into_sections(document_id: str, version: int, elements: list[dict[str
         if el["element_type"] in {"page_header", "page_footer"}:
             continue
         path = el.get("section_path") or []
+        if _is_boilerplate_section(path):
+            continue
         if path != current_path or not sections:
             idx += 1
             current_path = path

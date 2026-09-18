@@ -49,8 +49,8 @@ cd RAG-Copilot-for-Call-Reports
 
 # 2. Setup API backend
 cd apps\api
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
 # 3. Setup Web frontend
@@ -69,8 +69,8 @@ cd RAG-Copilot-for-Call-Reports
 
 # 2. Setup API backend
 cd apps/api
-python3 -m venv .venv
-source .venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 
 # 3. Setup Web frontend
@@ -92,11 +92,11 @@ Run the backend and frontend services in two terminal windows:
 ```bash
 cd apps/api
 # Windows:
-.\.venv\Scripts\Activate.ps1
+.\venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 
 # Linux/macOS:
-source .venv/bin/activate
+source venv/bin/activate
 uvicorn app.main:app --reload --port 8000
 ```
 

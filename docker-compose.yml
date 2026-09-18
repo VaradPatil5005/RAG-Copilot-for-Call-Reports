@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: tathyx-api
+    ports:
+      - "8000:8000"
+    environment:
+      - LLM_PROVIDER=auto
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
+      - AUTH_SECRET=${AUTH_SECRET:-local-dev-insecure-secret-do-not-use-in-production}
+      - AUTH_DEV_MODE=${AUTH_DEV_MODE:-true}
+    volumes:
+      - api-data:/app/data
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_BASE=http://localhost:8000
+    container_name: tathyx-web
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  api-data:

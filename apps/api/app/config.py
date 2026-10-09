@@ -12,7 +12,8 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-_ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+# TATHYX_ENV_FILE lets tests/deployments point at a different file (or none).
+_ENV_PATH = Path(os.environ.get("TATHYX_ENV_FILE") or (Path(__file__).resolve().parent.parent / ".env"))
 
 
 def _load_dotenv(path: Path) -> None:
@@ -62,8 +63,49 @@ OLLAMA_MODEL = get("OLLAMA_MODEL", "llama3.2")
 # a real deployment removes that endpoint entirely and this service only
 # ever *verifies* tokens the real IdP issued (swap the verification key
 # for the IdP's JWKS). Never commit a real secret; the default below is
-# for local dev only and `auth.py` refuses to start with it if
-# AUTH_DEV_MODE is explicitly turned off.
-AUTH_SECRET = get("AUTH_SECRET", "local-dev-insecure-secret-do-not-use-in-production")
-AUTH_DEV_MODE = get("AUTH_DEV_MODE", "true").lower() in ("1", "true", "yes")
-AUTH_TOKEN_TTL_SECONDS = int(get("AUTH_TOKEN_TTL_SECONDS", "3600"))
+# for local dev only and `validate_security_config()` refuses to start
+# with it unless AUTH_DEV_MODE is explicitly turned on.
+INSECURE_DEFAULT_SECRET = "local-dev-insecure-secret-do-not-use-in-production"
+AUTH_SECRET = get("AUTH_SECRET", INSECURE_DEFAULT_SECRET)
+# Secure by default: `/auth/dev-token` (which mints a token for *any*
+# tenant/principal set) is OFF unless a developer explicitly opts in.
+AUTH_DEV_MODE = (get("AUTH_DEV_MODE", "false") or "false").lower() in ("1", "true", "yes")
+AUTH_TOKEN_TTL_SECONDS = int(get("AUTH_TOKEN_TTL_SECONDS", "900"))
+# Every API token must carry this audience -- the web app's minting code
+# (apps/web/src/lib/auth-token.ts) sets the same value.
+AUTH_AUDIENCE = get("AUTH_AUDIENCE", "tathyx-api")
+
+# --- Deployment hardening ---------------------------------------------
+APP_ENV = (get("APP_ENV", "development") or "development").lower()
+IS_PRODUCTION = APP_ENV == "production"
+CORS_ALLOWED_ORIGINS = [
+    o.strip()
+    for o in (get("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:4500") or "").split(",")
+    if o.strip()
+]
+# Per-client-IP request budget for the in-process rate limiter (main.py).
+RATE_LIMIT_PER_MINUTE = int(get("RATE_LIMIT_PER_MINUTE", "120"))
+RATE_LIMIT_UPLOADS_PER_MINUTE = int(get("RATE_LIMIT_UPLOADS_PER_MINUTE", "10"))
+# Only trust X-Forwarded-For when the API sits behind a known reverse proxy.
+TRUST_PROXY_HEADERS = (get("TRUST_PROXY_HEADERS", "false") or "false").lower() in ("1", "true", "yes")
+
+# --- Storage location -------------------------------------------------
+# Raw files, derived files, the SQLite DB and the vector index all live
+# under this directory. Overridable so the test suite can run against a
+# throwaway directory instead of wiping a developer's real data.
+DATA_DIR = Path(get("TATHYX_DATA_DIR") or (Path(__file__).resolve().parent.parent / "data")).resolve()
+
+
+def validate_security_config() -> None:
+    """Fail closed at startup instead of silently running insecurely."""
+    if AUTH_DEV_MODE and IS_PRODUCTION:
+        raise RuntimeError("AUTH_DEV_MODE=true is not allowed when APP_ENV=production")
+    if not AUTH_DEV_MODE:
+        if AUTH_SECRET == INSECURE_DEFAULT_SECRET:
+            raise RuntimeError(
+                "AUTH_SECRET is unset or still the insecure default. Generate one with "
+                "`python -c \"import secrets; print(secrets.token_urlsafe(48))\"` and set it "
+                "identically in apps/api/.env and apps/web/.env.local."
+            )
+        if len(AUTH_SECRET or "") < 32:
+            raise RuntimeError("AUTH_SECRET must be at least 32 characters")

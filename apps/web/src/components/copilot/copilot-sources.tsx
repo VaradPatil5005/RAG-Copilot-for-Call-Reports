@@ -68,7 +68,7 @@ function SourceCard({
       className={cn(
         "group block w-full text-left rounded-xl border p-3.5 transition-all duration-200 cursor-pointer",
         isHighlighted
-          ? "border-white/30 bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.05)]"
+          ? "border-white/30 bg-white/10"
           : "border-white/[0.06] bg-white/[0.02] hover:border-white/15 hover:bg-white/[0.05]"
       )}
     >
@@ -79,7 +79,7 @@ function SourceCard({
             "flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-[11px] font-bold transition-colors",
             isHighlighted
               ? "bg-white text-black"
-              : "bg-white/[0.06] text-[#71717a] group-hover:text-white"
+              : "bg-white/[0.06] text-[#8E8273] group-hover:text-white"
           )}
         >
           {index + 1}

@@ -76,7 +76,7 @@ export function CopilotCorePanel({ stage }: { stage: CopilotStage | null }) {
           <p className="text-[10px] font-mono uppercase tracking-widest text-text-faint">
             This exchange
           </p>
-          <p className="mt-0.5 font-display text-xs font-semibold text-text">Knowledge Core</p>
+          <p className="mt-0.5 font-display text-xs font-medium text-text">Knowledge Core</p>
         </div>
         <span
           className={cn(

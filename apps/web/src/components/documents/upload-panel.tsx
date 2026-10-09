@@ -1,10 +1,24 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
-import { UploadCloud, FileText, X, Loader2, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { UploadCloud, FileText, Loader2, Trash2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { uploadDocuments, type UploadResultItem } from "@/lib/api";
 import { useAuth } from "@/components/auth/auth-context";
+
+// Must match ALLOWED_EXTENSIONS in apps/api/app/services/document_conversion.py.
+// The server re-checks every file by its actual content (magic bytes), so
+// this list is a convenience for the user, not the security boundary.
+const ACCEPTED_EXTENSIONS = [".pdf", ".docx", ".doc"];
+const ACCEPT_ATTR =
+  ".pdf,.docx,.doc,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const MAX_FILE_BYTES = 100 * 1024 * 1024; // mirrors validation.MAX_FILE_SIZE_BYTES
+const REJECT_TOAST_MS = 3000;
+
+function isAcceptedFile(f: File): boolean {
+  const name = f.name.toLowerCase();
+  return ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext));
+}
 
 interface UploadPanelProps {
   onUploaded: () => void;
@@ -21,12 +35,41 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
   const [meetingDate, setMeetingDate] = useState("");
   const [classification, setClassification] = useState("internal");
   const inputRef = useRef<HTMLInputElement>(null);
+  const [rejectNotice, setRejectNotice] = useState<string | null>(null);
+  const rejectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const addFiles = useCallback((incoming: FileList | File[]) => {
-    const arr = Array.from(incoming).filter((f) => f.name.toLowerCase().endsWith(".pdf"));
-    setPending((prev) => [...prev, ...arr]);
-    setResults(null);
+  useEffect(() => () => {
+    if (rejectTimer.current) clearTimeout(rejectTimer.current);
   }, []);
+
+  const showRejectNotice = useCallback((message: string) => {
+    setRejectNotice(message);
+    if (rejectTimer.current) clearTimeout(rejectTimer.current);
+    rejectTimer.current = setTimeout(() => setRejectNotice(null), REJECT_TOAST_MS);
+  }, []);
+
+  const addFiles = useCallback(
+    (incoming: FileList | File[]) => {
+      const all = Array.from(incoming);
+      const wrongType = all.filter((f) => !isAcceptedFile(f));
+      const tooBig = all.filter((f) => isAcceptedFile(f) && f.size > MAX_FILE_BYTES);
+      const accepted = all.filter((f) => isAcceptedFile(f) && f.size <= MAX_FILE_BYTES);
+
+      if (wrongType.length > 0) {
+        const names = wrongType.map((f) => f.name).join(", ");
+        showRejectNotice(
+          `File cannot be accepted: ${names}. Only PDF and Word documents (.pdf, .docx, .doc) are allowed.`
+        );
+      } else if (tooBig.length > 0) {
+        showRejectNotice(`File cannot be accepted: ${tooBig.map((f) => f.name).join(", ")} exceeds 100 MB.`);
+      }
+      if (accepted.length > 0) {
+        setPending((prev) => [...prev, ...accepted]);
+        setResults(null);
+      }
+    },
+    [showRejectNotice]
+  );
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -95,22 +138,37 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
           strokeWidth={1.5}
         />
         <p className="text-[13px] font-medium text-text">
-          Drag &amp; drop call report PDFs, or click to browse
+          Drag &amp; drop call reports (PDF or Word), or click to browse
         </p>
         <p className="text-[11px] text-text-faint">
-          Batch upload supported · auto-validates, extracts layout, and indexes on arrival
+          .pdf, .docx, .doc · up to 100 MB each · auto-validates, extracts layout, and indexes on arrival
         </p>
         <input
           ref={inputRef}
           type="file"
-          accept="application/pdf"
+          accept={ACCEPT_ATTR}
           multiple
-          aria-label="Upload call report PDFs"
+          aria-label="Upload call report PDF or Word documents"
           data-testid="document-upload-input"
           className="hidden"
-          onChange={(e) => e.target.files && addFiles(e.target.files)}
+          onChange={(e) => {
+            if (e.target.files) addFiles(e.target.files);
+            e.target.value = ""; // allow re-selecting the same file
+          }}
         />
       </div>
+
+      {rejectNotice && (
+        <div
+          role="alert"
+          aria-live="assertive"
+          data-testid="upload-reject-notice"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-error/40 bg-error/10 px-3 py-2 text-[12px] text-error"
+        >
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>{rejectNotice}</span>
+        </div>
+      )}
 
       {pending.length > 0 && (
         <div className="mt-4 rounded-xl border border-border-subtle bg-elevated/40 p-3">
@@ -204,7 +262,7 @@ export function UploadPanel({ onUploaded }: UploadPanelProps) {
         <button
           onClick={submit}
           disabled={pending.length === 0 || busy}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-[12px] font-medium text-bg transition-opacity disabled:opacity-40"
+          className="flex items-center gap-2 rounded-lg bg-brand-fill hover:bg-brand-press px-4 py-2 text-[12px] font-medium text-paper transition-opacity disabled:opacity-40"
         >
           {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
           {busy ? "Uploading…" : "Upload & process"}

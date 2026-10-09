@@ -1,11 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Radar, Smartphone, Building2, ArrowRight, AlertCircle, RotateCw } from "lucide-react";
+import { Smartphone, Building2, ArrowRight, AlertCircle, RotateCw } from "lucide-react";
 import { evaluatePasswordStrength } from "@/lib/password-rules";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { DEV_OTP_STORAGE_KEY } from "@/lib/session-refresh";
+
+import { AuthShell } from "@/components/auth/auth-shell";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -19,6 +23,9 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
+
   const strength = evaluatePasswordStrength(password);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -31,6 +38,13 @@ export default function SignupPage() {
       setIsLoading(false);
       return;
     }
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      setIsLoading(false);
+      return;
+    }
+    const token = captchaToken;
+    captchaRef.current?.reset();
 
     try {
       const res = await fetch("/api/auth/signup", {
@@ -42,6 +56,7 @@ export default function SignupPage() {
           phone,
           orgName,
           password,
+          captchaToken: token,
         }),
       });
 
@@ -50,12 +65,13 @@ export default function SignupPage() {
       if (!res.ok || !data.success) {
         setError(data.error || "Failed to create account");
       } else {
-        // Redirect to verify-phone page with query params
-        const params = new URLSearchParams({
-          phone,
-          email,
-          ...(data.devOtp ? { devOtp: data.devOtp } : {}),
-        });
+        // Dev-mode OTP travels via sessionStorage, never the URL.
+        try {
+          if (data.devOtp) sessionStorage.setItem(DEV_OTP_STORAGE_KEY, data.devOtp);
+        } catch {
+          /* storage unavailable -- the code is also printed in the server log */
+        }
+        const params = new URLSearchParams({ phone: data.phone || phone });
         router.push(`/verify-phone?${params.toString()}`);
       }
     } catch (err: any) {
@@ -66,19 +82,14 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-dark relative overflow-hidden">
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-evidence/10 blur-[120px] pointer-events-none" />
-
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-surface/90 backdrop-blur-xl p-8 shadow-2xl relative z-10">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-elevated-2 border border-white/10 flex items-center justify-center shadow-inner mb-3">
-            <Radar className="h-6 w-6 text-evidence" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-text">
-            Join Tathyx AI
+    <AuthShell headline="Every call report, one grounded answer away.">
+      <div>
+        <div className="mb-8">
+          <h1 className="font-display text-[1.9rem] font-medium leading-tight text-text">
+            Create your workspace
           </h1>
-          <p className="text-[12px] text-text-muted mt-1">
-            Enterprise Decision Intelligence for Call Reports
+          <p className="text-[13px] text-text-muted mt-2">
+            Grounded answers from every call report, with citations you can audit.
           </p>
         </div>
 
@@ -116,7 +127,7 @@ export default function SignupPage() {
 
         <div className="relative flex items-center justify-center my-4">
           <div className="w-full border-t border-border-subtle" />
-          <span className="absolute bg-surface px-3 text-[11px] font-mono text-text-faint uppercase">
+          <span className="absolute bg-bg px-3 text-[11px] font-mono text-text-faint uppercase">
             or work email
           </span>
         </div>
@@ -235,10 +246,12 @@ export default function SignupPage() {
             </label>
           </div>
 
+          <Turnstile ref={captchaRef} onToken={setCaptchaToken} action="signup" />
+
           <button
             type="submit"
-            disabled={isLoading || !strength.isValid}
-            className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-evidence to-evidence/90 text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+            disabled={isLoading || !strength.isValid || !captchaToken}
+            className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? (
               <RotateCw className="h-4 w-4 animate-spin" />
@@ -258,6 +271,6 @@ export default function SignupPage() {
           </Link>
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }

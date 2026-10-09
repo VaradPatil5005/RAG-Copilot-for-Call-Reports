@@ -12,6 +12,8 @@ trail work in the rest of 6.3 and for manual testing.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -27,6 +29,7 @@ class DevTokenRequest(BaseModel):
     principals: list[str] = []
     business_unit: str | None = None
     region: str | None = None
+    role: Literal["customer", "analyst", "admin", "super_admin"] = "customer"
 
 
 @router.post("/dev-token")
@@ -39,6 +42,7 @@ def issue_dev_token(req: DevTokenRequest) -> dict:
         principals=req.principals,
         business_unit=req.business_unit,
         region=req.region,
+        role=req.role,
     )
     return {"access_token": token, "token_type": "bearer", "expires_in": config.AUTH_TOKEN_TTL_SECONDS}
 
@@ -51,4 +55,5 @@ def whoami(identity: auth.Identity = Depends(auth.require_identity)) -> dict:
         "principals": identity.principals,
         "business_unit": identity.business_unit,
         "region": identity.region,
+        "role": identity.role,
     }

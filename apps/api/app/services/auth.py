@@ -40,6 +40,9 @@ from app import config
 ALGORITHM = "HS256"
 
 
+ROLE_RANK = {"customer": 0, "analyst": 1, "admin": 2, "super_admin": 3}
+
+
 @dataclass
 class Identity:
     sub: str
@@ -47,6 +50,10 @@ class Identity:
     principals: list[str] = field(default_factory=list)
     business_unit: str | None = None
     region: str | None = None
+    role: str = "customer"
+
+    def has_role(self, minimum: str) -> bool:
+        return ROLE_RANK.get(self.role, -1) >= ROLE_RANK[minimum]
 
 
 def create_dev_token(
@@ -56,6 +63,7 @@ def create_dev_token(
     business_unit: str | None = None,
     region: str | None = None,
     ttl_seconds: int | None = None,
+    role: str = "customer",
 ) -> str:
     """Local-dev-only token minting -- see module docstring. Never called
     from production request-handling code, only from `/auth/dev-token`
@@ -67,6 +75,8 @@ def create_dev_token(
         "principals": principals,
         "business_unit": business_unit,
         "region": region,
+        "role": role,
+        "aud": config.AUTH_AUDIENCE,
         "iat": now,
         "exp": now + (ttl_seconds or config.AUTH_TOKEN_TTL_SECONDS),
     }
@@ -75,7 +85,14 @@ def create_dev_token(
 
 def _decode(token: str) -> dict:
     try:
-        return jwt.decode(token, config.AUTH_SECRET, algorithms=[ALGORITHM])
+        return jwt.decode(
+            token,
+            config.AUTH_SECRET,
+            algorithms=[ALGORITHM],  # pinned: rejects alg=none / RS256-confusion tokens
+            audience=config.AUTH_AUDIENCE,
+            options={"require": ["exp", "iat", "sub", "aud"]},
+            leeway=5,
+        )
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(status_code=401, detail="token expired") from exc
     except jwt.InvalidTokenError as exc:
@@ -92,13 +109,25 @@ def require_identity(authorization: str | None = Header(default=None)) -> Identi
     if not authorization or not authorization.lower().startswith("bearer "):
         raise HTTPException(status_code=401, detail="missing bearer token")
     token = authorization.split(" ", 1)[1].strip()
+    if not token or len(token) > 8192:
+        raise HTTPException(status_code=401, detail="invalid token")
     claims = _decode(token)
+    tenant_id = claims.get("tenant_id")
+    principals = claims.get("principals") or []
+    role = claims.get("role") or "customer"
+    if not isinstance(tenant_id, str) or not tenant_id:
+        raise HTTPException(status_code=401, detail="invalid token")
+    if not isinstance(principals, list) or not all(isinstance(p, str) for p in principals):
+        raise HTTPException(status_code=401, detail="invalid token")
+    if role not in ROLE_RANK:
+        raise HTTPException(status_code=401, detail="invalid token")
     return Identity(
-        sub=claims.get("sub", "unknown"),
-        tenant_id=claims.get("tenant_id", "tenant-a"),
-        principals=claims.get("principals") or [],
+        sub=str(claims["sub"]),
+        tenant_id=tenant_id,
+        principals=principals,
         business_unit=claims.get("business_unit"),
         region=claims.get("region"),
+        role=role,
     )
 
 
@@ -111,3 +140,21 @@ def optional_identity(authorization: str | None = Header(default=None)) -> Ident
     if not authorization:
         return None
     return require_identity(authorization)
+
+
+def require_role(minimum: str):
+    """Dependency factory: authenticated *and* at least `minimum` role
+    (customer < analyst < admin < super_admin). 403, not 404, because the
+    route itself is not secret -- only the operation is privileged."""
+
+    def _dep(authorization: str | None = Header(default=None)) -> Identity:
+        identity = require_identity(authorization)
+        if not identity.has_role(minimum):
+            raise HTTPException(status_code=403, detail="insufficient role")
+        return identity
+
+    return _dep
+
+
+require_admin = require_role("admin")
+require_super_admin = require_role("super_admin")

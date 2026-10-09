@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Tathyx">
+  <rect width="64" height="64" rx="14" fill="#E6D5BD"/>
+  <path d="M12 18a2 2 0 0 1 2-2h24a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-8v24a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V24h-8a2 2 0 0 1-2-2z" fill="#D5360C"/>
+  <circle cx="48" cy="20" r="5" fill="#101010"/>
+</svg>

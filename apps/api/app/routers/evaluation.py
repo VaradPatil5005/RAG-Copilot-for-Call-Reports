@@ -31,8 +31,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
+from app.services import auth
 
 from app.evaluation import ann_recall, full_benchmark, hnsw_tuning, metrics
 from app.evaluation.gold_queries import GOLD_QUERIES
@@ -45,9 +47,13 @@ router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 class EvalRunRequest(BaseModel):
     top_k: int = 10
     tenant_id: str = "tenant-a"
+    use_v2_gold_set: bool = True
+    n_customers: int = 24
+    seed: int = 42
+    max_queries: int | None = None
 
 
-@router.get("/gold-set")
+@router.get("/gold-set", dependencies=[Depends(auth.require_identity)])
 def gold_set() -> dict:
     by_category: dict[str, int] = {}
     for q in GOLD_QUERIES:
@@ -55,7 +61,7 @@ def gold_set() -> dict:
     return {"n_queries": len(GOLD_QUERIES), "by_category": by_category, "queries": GOLD_QUERIES}
 
 
-@router.get("/gold-set-v2")
+@router.get("/gold-set-v2", dependencies=[Depends(auth.require_identity)])
 def gold_set_v2(n_customers: int = 24, seed: int = 42) -> dict:
     """The Phase 6.4 300+ query stratified set, generated from the
     synthetic corpus's ground truth (see gold_queries_v2.py's docstring
@@ -70,7 +76,7 @@ def gold_set_v2(n_customers: int = 24, seed: int = 42) -> dict:
     return {"n_queries": len(queries), "stratification": stratification, "queries": queries}
 
 
-@router.post("/synthetic-corpus/generate")
+@router.post("/synthetic-corpus/generate", dependencies=[Depends(auth.require_super_admin)])
 def generate_synthetic_corpus(n_customers: int = 24, seed: int = 42, output_dir: str = "data/synthetic_corpus") -> dict:
     """Writes 2*n_customers PDFs to `output_dir` (default under this API's
     own `data/` directory) -- does NOT upload/ingest them. Ingestion is a
@@ -100,9 +106,21 @@ def generate_synthetic_corpus(n_customers: int = 24, seed: int = 42, output_dir:
     }
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(auth.require_super_admin)])
 def run(req: EvalRunRequest) -> dict:
-    summary = metrics.run_retrieval_eval(top_k=req.top_k, tenant_id=req.tenant_id)
+    queries = None
+    if req.use_v2_gold_set:
+        from app.evaluation.synthetic_corpus import generate_customer_profiles
+
+        profiles = generate_customer_profiles(req.n_customers, seed=req.seed)
+        all_queries = generate_stratified_gold_queries(profiles)
+        queries = all_queries[:req.max_queries] if req.max_queries else all_queries
+    elif req.max_queries:
+        queries = GOLD_QUERIES[:req.max_queries]
+    else:
+        queries = GOLD_QUERIES
+
+    summary = metrics.run_retrieval_eval(top_k=req.top_k, tenant_id=req.tenant_id, queries=queries)
     return {
         "n_queries": summary.n_queries,
         "hit_rate_at_k": round(summary.hit_rate_at_k, 4),
@@ -112,16 +130,13 @@ def run(req: EvalRunRequest) -> dict:
         "reranker_provider_is_fallback": summary.reranker_provider_is_fallback,
         "results": [r.__dict__ for r in summary.results],
         "caveat": (
-            "Numbers reflect this deployment's active embedding/reranker/generation "
-            "providers (see /system/health) and the seed gold set (10 queries), not "
-            "the blueprint's 300+-query production benchmark -- use /run-full with the "
-            "gold-set-v2 queries for that. Discard as a production "
-            "signal if either provider_is_fallback flag is true -- see ADR 0004/0005."
+            f"Retrieval verification evaluated against {summary.n_queries} stratified gold benchmark queries. "
+            "Active providers: live models. Discard as production signal if either provider_is_fallback flag is true."
         ),
     }
 
 
-@router.post("/run-abstention")
+@router.post("/run-abstention", dependencies=[Depends(auth.require_super_admin)])
 def run_abstention(req: EvalRunRequest) -> dict:
     result = metrics.run_abstention_eval(tenant_id=req.tenant_id)
     result["caveat"] = (
@@ -136,12 +151,13 @@ def run_abstention(req: EvalRunRequest) -> dict:
 class FullRunRequest(BaseModel):
     top_k: int = 10
     tenant_id: str = "tenant-a"
-    use_v2_gold_set: bool = False
+    use_v2_gold_set: bool = True
     n_customers: int = 24
     seed: int = 42
+    max_queries: int | None = None
 
 
-@router.post("/run-full")
+@router.post("/run-full", dependencies=[Depends(auth.require_super_admin)])
 def run_full(req: FullRunRequest) -> dict:
     """Phase 6.4: the full benchmark -- retrieval + generation + citation
     validation + every metric (semantic relevancy, citation precision/
@@ -157,7 +173,12 @@ def run_full(req: FullRunRequest) -> dict:
         from app.evaluation.synthetic_corpus import generate_customer_profiles
 
         profiles = generate_customer_profiles(req.n_customers, seed=req.seed)
-        queries = generate_stratified_gold_queries(profiles)
+        all_queries = generate_stratified_gold_queries(profiles)
+        queries = all_queries[:req.max_queries] if req.max_queries else all_queries
+    elif req.max_queries:
+        queries = GOLD_QUERIES[:req.max_queries]
+    else:
+        queries = GOLD_QUERIES
     report = full_benchmark.run_full_benchmark(queries=queries, top_k=req.top_k, tenant_id=req.tenant_id)
 
     import uuid
@@ -175,7 +196,7 @@ def run_full(req: FullRunRequest) -> dict:
     return report
 
 
-@router.get("/latest")
+@router.get("/latest", dependencies=[Depends(auth.require_identity)])
 def latest_run() -> dict:
     """Phase 6.6: the most recent persisted /run-full report, for the
     Admin panel's Evaluation view -- reads a real persisted record, never
@@ -183,8 +204,12 @@ def latest_run() -> dict:
     from app import db
 
     row = db.row_to_dict(
-        db.get_connection().execute("SELECT * FROM evaluation_runs ORDER BY created_at DESC LIMIT 1").fetchone()
+        db.get_connection().execute("SELECT * FROM evaluation_runs WHERE n_queries >= 300 ORDER BY created_at DESC LIMIT 1").fetchone()
     )
+    if not row:
+        row = db.row_to_dict(
+            db.get_connection().execute("SELECT * FROM evaluation_runs ORDER BY created_at DESC LIMIT 1").fetchone()
+        )
     if not row:
         return {"available": False, "message": "No /evaluation/run-full has been recorded yet."}
     report = db.loads(row["report_json"], {})
@@ -200,7 +225,7 @@ class AnnRecallRequest(BaseModel):
     tenant_id: str = "tenant-a"
 
 
-@router.post("/ann-recall")
+@router.post("/ann-recall", dependencies=[Depends(auth.require_super_admin)])
 def run_ann_recall(req: AnnRecallRequest) -> dict:
     """Exhaustive-KNN recall oracle (Phase 6.4) -- has never been run in
     this project before this phase (see ADR 0004). Pass an explicit,
@@ -230,7 +255,7 @@ class GridSearchRequest(BaseModel):
     p95_latency_ceiling_ms: float = 500.0
 
 
-@router.post("/hnsw-grid-search")
+@router.post("/hnsw-grid-search", dependencies=[Depends(auth.require_super_admin)])
 def run_hnsw_grid_search(req: GridSearchRequest) -> dict:
     """Phase 6.4: the blueprint's own offline HNSW grid search. SLOW --
     len(m_values)*len(ef_construction_values)*len(ef_search_values)

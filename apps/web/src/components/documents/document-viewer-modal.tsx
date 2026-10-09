@@ -26,10 +26,10 @@ import {
   getDocument,
   getElements,
   getDocumentPdfBlob,
-  figureUrl,
   type DocumentDetail,
   type ElementItem,
 } from "@/lib/api";
+import { AuthedFigure } from "./authed-figure";
 import { StatusBadge } from "./status-badge";
 
 interface DocumentViewerModalProps {
@@ -217,12 +217,12 @@ export function DocumentViewerModal({
       <div
         ref={containerRef}
         className={cn(
-          "relative flex flex-col w-full bg-[#0E131F] border border-white/10 rounded-2xl shadow-[0_25px_80px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-200",
+          "relative flex flex-col w-full bg-[#141312] border border-white/10 rounded-2xl shadow-[0_25px_80px_rgba(0,0,0,0.9)] overflow-hidden transition-all duration-200",
           isFullScreen ? "h-full max-w-none" : "h-[94vh] max-w-6xl"
         )}
       >
         {/* ================= TOP HEADER BAR ================= */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#121826] px-5 py-3.5 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] bg-[#1A1817] px-5 py-3.5 shrink-0">
           {/* Document Identity */}
           <div className="flex items-center gap-3 min-w-0 max-w-[45%]">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/15 text-primary shrink-0 border border-primary/20">
@@ -369,7 +369,7 @@ export function DocumentViewerModal({
         </div>
 
         {/* ================= BODY CONTENT ================= */}
-        <div className="flex-1 overflow-y-auto relative bg-[#090C14]">
+        <div className="flex-1 overflow-y-auto relative bg-[#101010]">
           {loading ? (
             <div className="flex h-full flex-col items-center justify-center gap-3 text-zinc-400">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -470,7 +470,7 @@ export function DocumentViewerModal({
                   <div
                     key={`page-${pageNum}`}
                     id={`page-${pageNum}`}
-                    className="rounded-2xl border border-white/[0.08] bg-[#111624] p-6 sm:p-10 shadow-2xl relative"
+                    className="rounded-2xl border border-white/[0.08] bg-[#1A1817] p-6 sm:p-10 shadow-2xl relative"
                   >
                     {/* Page Header Ribbon */}
                     <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 mb-6 text-xs text-zinc-400">
@@ -506,7 +506,7 @@ export function DocumentViewerModal({
                             className={cn(
                               "transition-all duration-200 rounded-xl p-2",
                               isSnippetMatch &&
-                                "bg-amber-500/10 border-2 border-amber-400/50 shadow-[0_0_30px_rgba(245,158,11,0.15)] ring-1 ring-amber-400/30 p-4 my-3",
+                                "bg-amber-500/10 border-2 border-amber-400/50 ring-1 ring-amber-400/30 p-4 my-3",
                               matchesSearch && "bg-primary/10 border border-primary/30 p-3"
                             )}
                           >
@@ -583,9 +583,9 @@ export function DocumentViewerModal({
                             {/* Figures & Images */}
                             {el.element_type === "figure" && el.figure_path && (
                               <div className="my-4 rounded-xl border border-white/10 bg-black/40 p-4 text-center">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={figureUrl(doc!.document_id, el.figure_path)}
+                                <AuthedFigure
+                                  documentId={doc!.document_id}
+                                  figurePath={el.figure_path}
                                   alt={el.description || "Document Figure"}
                                   className="max-h-96 mx-auto rounded-lg object-contain shadow-lg"
                                 />
@@ -647,7 +647,7 @@ export function DocumentViewerModal({
           ) : (
             /* ================= METADATA & AUDIT DETAILS ================= */
             <div className="p-6 sm:p-10 max-w-4xl mx-auto space-y-6">
-              <div className="rounded-2xl border border-white/[0.08] bg-[#111624] p-6 space-y-6">
+              <div className="rounded-2xl border border-white/[0.08] bg-[#1A1817] p-6 space-y-6">
                 <div>
                   <h3 className="text-base font-semibold text-white">Technical Metadata & Audit Profile</h3>
                   <p className="text-xs text-zinc-400 mt-1">

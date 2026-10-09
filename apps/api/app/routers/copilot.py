@@ -31,7 +31,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -610,20 +610,32 @@ async def chat(req: ChatRequest, identity: auth.Identity = Depends(auth.require_
 
 
 @router.get("/chat/traces")
-def list_traces(conversation_id: str | None = None, limit: int = 50) -> dict:
+def list_traces(
+    conversation_id: str | None = None,
+    limit: int = Query(50, ge=1, le=500),
+    identity: auth.Identity = Depends(auth.require_identity),
+) -> dict:
     """Basic conversation history read -- Phase 4 exit criteria requires
     `chat_traces` to be populated; this exposes it for the frontend history
-    view and for manual/automated inspection."""
+    view and for manual/automated inspection. Always scoped to the caller's
+    tenant; non-admins only ever see their own conversations."""
     conn = db.get_connection()
+    sql = "SELECT * FROM chat_traces WHERE tenant_id = ?"
+    params: list = [identity.tenant_id]
+    if not identity.has_role("admin"):
+        # chat_traces has no per-user column; access_audit_log records
+        # which verified identity produced each trace_id.
+        sql += (
+            " AND trace_id IN (SELECT trace_id FROM access_audit_log "
+            "WHERE identity_sub = ? AND tenant_id = ? AND trace_id IS NOT NULL)"
+        )
+        params.extend([identity.sub, identity.tenant_id])
     if conversation_id:
-        rows = conn.execute(
-            "SELECT * FROM chat_traces WHERE conversation_id = ? ORDER BY created_at DESC LIMIT ?",
-            (conversation_id, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM chat_traces ORDER BY created_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+        sql += " AND conversation_id = ?"
+        params.append(conversation_id)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    rows = conn.execute(sql, params).fetchall()
 
     out = []
     for row in db.rows_to_list(rows):

@@ -56,7 +56,7 @@ export function OverviewMetrics() {
       : "99.4%";
 
   return (
-    <div className="mx-8 relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
+    <div className="mx-8 relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101010]/80 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)]">
       {/* Top Specular Laser Line */}
       <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-evidence/60 to-transparent" />
 
@@ -68,10 +68,10 @@ export function OverviewMetrics() {
             <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
               Documents Processed
             </span>
-            <FileStack className="h-4 w-4 text-evidence/90 drop-shadow-[0_0_8px_rgba(79,209,197,0.6)]" strokeWidth={1.75} />
+            <FileStack className="h-4 w-4 text-evidence/90" strokeWidth={1.75} />
           </div>
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-[0_0_20px_rgba(255,255,255,0.2)]">
+            <span className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-white">
               {String(documentsProcessed)}
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-zinc-400">
@@ -88,10 +88,10 @@ export function OverviewMetrics() {
             <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
               AI Query Traces
             </span>
-            <MessagesSquare className="h-4 w-4 text-primary/90 drop-shadow-[0_0_8px_rgba(240,168,87,0.6)]" strokeWidth={1.75} />
+            <MessagesSquare className="h-4 w-4 text-primary/90" strokeWidth={1.75} />
           </div>
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-[0_0_20px_rgba(240,168,87,0.2)]">
+            <span className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-white">
               {String(aiQueries)}
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-primary/90">
@@ -108,10 +108,10 @@ export function OverviewMetrics() {
             <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
               P50 Response Time
             </span>
-            <Clock className="h-4 w-4 text-cyan-400/90 drop-shadow-[0_0_8px_rgba(0,245,212,0.6)]" strokeWidth={1.75} />
+            <Clock className="h-4 w-4 text-cyan-400/90" strokeWidth={1.75} />
           </div>
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-[0_0_20px_rgba(0,245,212,0.2)]">
+            <span className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-white">
               {avgResponseTime}
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-zinc-400">
@@ -128,14 +128,14 @@ export function OverviewMetrics() {
             <span className="font-mono text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
               Citation Accuracy
             </span>
-            <ShieldCheck className="h-4 w-4 text-evidence drop-shadow-[0_0_8px_rgba(79,209,197,0.8)]" strokeWidth={1.75} />
+            <ShieldCheck className="h-4 w-4 text-evidence" strokeWidth={1.75} />
           </div>
           <div className="mt-4 flex items-baseline gap-3">
-            <span className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white drop-shadow-[0_0_20px_rgba(79,209,197,0.3)]">
+            <span className="font-display text-3xl sm:text-4xl font-medium tracking-tight text-white">
               {citationAccuracy}
             </span>
             <span className="inline-flex items-center gap-1.5 font-mono text-[10px] text-evidence font-medium">
-              <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)] animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-evidence animate-pulse" />
               Grounded
             </span>
           </div>

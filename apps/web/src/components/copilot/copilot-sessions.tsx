@@ -281,7 +281,7 @@ export function CopilotSessions({
 
   if (collapsed) {
     return (
-      <div className="flex w-12 shrink-0 flex-col items-center border-r border-white/[0.06] bg-[#06080F] py-3 gap-3">
+      <div className="flex w-12 shrink-0 flex-col items-center border-r border-white/[0.06] bg-[#101010] py-3 gap-3">
         <button
           onClick={() => setCollapsed(false)}
           className="rounded-lg p-2 text-zinc-400 hover:bg-white/[0.05] hover:text-white transition-colors"
@@ -301,7 +301,7 @@ export function CopilotSessions({
   }
 
   return (
-    <div className="flex w-[260px] shrink-0 flex-col border-r border-white/[0.06] bg-[#06080F]">
+    <div className="flex w-[260px] shrink-0 flex-col border-r border-white/[0.06] bg-[#101010]">
       {/* Top Header: New Chat & Collapse */}
       <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-2.5">
         <button

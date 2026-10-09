@@ -1,22 +1,45 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import { ShieldCheck, ArrowRight, RotateCw, AlertCircle } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { clearAuthToken } from "@/lib/auth";
+import { DEV_OTP_STORAGE_KEY, refreshSessionClaims } from "@/lib/session-refresh";
+
+import { AuthShell } from "@/components/auth/auth-shell";
 
 function VerifyPhoneContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refreshUser } = useAuth();
+  const { refreshUser, isAuthenticated } = useAuth();
 
   const phoneParam = searchParams.get("phone") || "";
-  const devOtpParam = searchParams.get("devOtp") || null;
 
   const [phone, setPhone] = useState(phoneParam);
   const [code, setCode] = useState("");
-  const [devOtp, setDevOtp] = useState<string | null>(devOtpParam);
+  const [devOtp, setDevOtp] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
+
+  useEffect(() => {
+    // Read after mount (sessionStorage doesn't exist during SSR), via a
+    // timer callback so the state update isn't synchronous in the effect.
+    const timer = setTimeout(() => {
+      try {
+        const stored = sessionStorage.getItem(DEV_OTP_STORAGE_KEY);
+        if (stored) {
+          sessionStorage.removeItem(DEV_OTP_STORAGE_KEY);
+          setDevOtp(stored);
+        }
+      } catch {
+        /* storage unavailable */
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
   const [cooldown, setCooldown] = useState(45);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +67,17 @@ function VerifyPhoneContent() {
 
       if (!res.ok || !data.success) {
         setError(data.error || "Verification failed");
-      } else {
+      } else if (isAuthenticated) {
+        // Signed in already (e.g. Google): re-issue the session so it
+        // reflects the verified phone -- otherwise the proxy keeps sending
+        // the user back to this page.
+        await refreshSessionClaims();
+        clearAuthToken();
         await refreshUser();
         router.push("/copilot");
         router.refresh();
+      } else {
+        router.push("/login?verified=1");
       }
     } catch (err: any) {
       setError(err?.message || "Failed to verify phone");
@@ -58,6 +88,12 @@ function VerifyPhoneContent() {
 
   const handleResend = async () => {
     if (cooldown > 0) return;
+    if (!captchaToken) {
+      setError("Please complete the security check below, then resend.");
+      return;
+    }
+    const token = captchaToken;
+    captchaRef.current?.reset();
     setIsLoading(true);
     setError(null);
 
@@ -65,7 +101,7 @@ function VerifyPhoneContent() {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, purpose: "signup_phone" }),
+        body: JSON.stringify({ phone, purpose: "signup_phone", captchaToken: token }),
       });
 
       const data = await res.json();
@@ -83,14 +119,14 @@ function VerifyPhoneContent() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-dark relative overflow-hidden">
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-surface/90 backdrop-blur-xl p-8 shadow-2xl relative z-10">
-        <div className="flex flex-col items-center text-center mb-6">
+    <AuthShell headline="One last step to secure your workspace.">
+      <div>
+        <div className="mb-8">
           <div className="h-12 w-12 rounded-full bg-evidence/10 text-evidence flex items-center justify-center mb-3">
             <ShieldCheck className="h-6 w-6" />
           </div>
-          <h1 className="font-display text-lg font-bold text-text">Verify Mobile Number</h1>
-          <p className="text-[12px] text-text-muted mt-1">
+          <h1 className="font-display text-[1.9rem] font-medium leading-tight text-text">Verify your phone</h1>
+          <p className="text-[13px] text-text-muted mt-2">
             Mandatory verification for confidential banking data access.
           </p>
         </div>
@@ -106,7 +142,7 @@ function VerifyPhoneContent() {
         {devOtp && (
           <div className="mb-4 rounded-xl border border-evidence/40 bg-evidence/10 p-3 text-[11px] text-evidence flex items-center justify-between">
             <div>
-              <span className="font-bold">🔑 Free Dev Mode OTP:</span>{" "}
+              <span className="font-bold">Development OTP:</span>{" "}
               <span className="font-mono text-base font-black tracking-widest">{devOtp}</span>
             </div>
             <button
@@ -151,7 +187,7 @@ function VerifyPhoneContent() {
           <button
             type="submit"
             disabled={isLoading || code.length !== 6}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-evidence to-evidence/90 text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? (
               <RotateCw className="h-4 w-4 animate-spin" />
@@ -164,7 +200,11 @@ function VerifyPhoneContent() {
           </button>
         </form>
 
-        <div className="mt-4 text-center text-[12px] text-text-faint">
+        <div className="mt-4">
+          <Turnstile ref={captchaRef} onToken={setCaptchaToken} action="resend" />
+        </div>
+
+        <div className="mt-2 text-center text-[12px] text-text-faint">
           Didn&apos;t receive code?{" "}
           <button
             type="button"
@@ -178,7 +218,7 @@ function VerifyPhoneContent() {
           </button>
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }
 

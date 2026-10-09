@@ -213,9 +213,13 @@ def test_summary_endpoint_is_read_only_and_never_500s_with_no_prior_runs():
     from app import db as db_module
     from app.main import app
 
+    from app.services import auth as auth_service
+
     db_module.init_db()
     client = TestClient(app)
-    resp = client.get("/decision-eval/summary")
+    # /decision-eval/* now requires a signed-in caller (it used to be public).
+    token = auth_service.create_dev_token(sub="summary-reader", tenant_id="tenant-a", principals=[])
+    resp = client.get("/decision-eval/summary", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200
     body = resp.json()
     assert "quality_available" in body

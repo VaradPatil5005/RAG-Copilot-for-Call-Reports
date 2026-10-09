@@ -1,14 +1,20 @@
 from __future__ import annotations
 
-import random
-import string
+import re
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Form, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 
 from app import db
-from app.services import auth, pipeline, storage, validation
+from app.services import auth, document_conversion, pipeline, storage, validation
+
+ALLOWED_CLASSIFICATIONS = {"public", "internal", "confidential", "restricted"}
+MAX_FILES_PER_UPLOAD = 20
+MAX_METADATA_FIELD_LENGTH = 200
+_FIGURE_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,200}$")
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -18,9 +24,42 @@ def _now() -> str:
 
 
 def _new_document_id() -> str:
+    """CSPRNG-based and re-drawn on collision -- the old `random.choices`
+    6-digit suffix was predictable, and a collision raised an IntegrityError
+    (HTTP 500) on the documents primary key."""
     year = datetime.now(timezone.utc).year
-    suffix = "".join(random.choices(string.digits, k=6))
-    return f"CR-{year}-{suffix}"
+    conn = db.get_connection()
+    for _ in range(20):
+        candidate = f"CR-{year}-{secrets.randbelow(10**8):08d}"
+        if not conn.execute("SELECT 1 FROM documents WHERE document_id = ?", (candidate,)).fetchone():
+            return candidate
+    raise HTTPException(503, "Could not allocate a document id, please retry")
+
+
+def _clean_text_field(value: str | None, field: str) -> str | None:
+    if value is None:
+        return None
+    value = value.strip()
+    if not value:
+        return None
+    if len(value) > MAX_METADATA_FIELD_LENGTH or any(ord(ch) < 32 for ch in value):
+        raise HTTPException(400, f"Invalid {field}")
+    return value
+
+
+def _clean_classification(value: str | None) -> str:
+    value = (value or "internal").strip().lower()
+    if value not in ALLOWED_CLASSIFICATIONS:
+        raise HTTPException(400, f"classification must be one of {sorted(ALLOWED_CLASSIFICATIONS)}")
+    return value
+
+
+def _safe_filename(name: str | None) -> str:
+    """Display-only name: drop any client-supplied directory part and
+    control characters."""
+    base = re.split(r"[\\/]", name or "")[-1]
+    base = "".join(ch for ch in base if ord(ch) >= 32).strip()
+    return base[:255] or "untitled"
 
 
 def _document_authorized(doc_row: dict, identity: auth.Identity) -> bool:
@@ -112,25 +151,41 @@ async def upload_documents(
     tenant_id = identity.tenant_id
     if not files:
         raise HTTPException(400, "No files provided")
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(400, f"At most {MAX_FILES_PER_UPLOAD} files per upload")
+    customer_name = _clean_text_field(customer_name, "customer_name")
+    account_owner = _clean_text_field(account_owner, "account_owner")
+    meeting_date = _clean_text_field(meeting_date, "meeting_date")
+    classification = _clean_classification(classification)
 
     queue: pipeline.IngestionQueue = request.app.state.ingestion_queue
     results = []
 
     for upload in files:
-        filename = upload.filename or "untitled.pdf"
-        if not filename.lower().endswith(".pdf"):
+        filename = _safe_filename(upload.filename)
+        if document_conversion.extension_of(filename) not in document_conversion.ALLOWED_EXTENSIONS:
             results.append(
-                {"filename": filename, "status": "rejected", "message": "Only PDF files are accepted"}
+                {
+                    "filename": filename,
+                    "status": "rejected",
+                    "message": "File cannot be accepted. Only PDF and Word documents (.pdf, .docx, .doc) are allowed.",
+                }
             )
             continue
 
-        data = await upload.read()
-        sig = validation.check_signature(data)
-        if not sig.ok:
-            results.append({"filename": filename, "status": "rejected", "message": sig.detail})
+        # Read at most limit+1 bytes so an oversized upload is rejected
+        # without buffering more than the limit in memory.
+        data = await upload.read(validation.MAX_FILE_SIZE_BYTES + 1)
+        try:
+            prepared = await run_in_threadpool(document_conversion.prepare_upload, filename, data)
+        except document_conversion.ConversionError as exc:
+            results.append({"filename": filename, "status": "rejected", "message": exc.message})
             continue
 
-        checksum = storage.sha256_bytes(data)
+        # Checksum the bytes the user actually sent, so re-uploading the same
+        # Word file is still detected as a duplicate (conversion output is not
+        # byte-for-byte reproducible).
+        checksum = storage.sha256_bytes(prepared.original_bytes)
 
         # Idempotent duplicate detection: same tenant + same checksum
         existing = db.row_to_dict(
@@ -167,7 +222,11 @@ async def upload_documents(
                 (document_id, tenant_id, filename, customer_name, account_owner, meeting_date, classification, 1, now),
             )
 
-        file_path = storage.save_raw_pdf(tenant_id, document_id, version, data)
+        file_path = storage.save_raw_pdf(tenant_id, document_id, version, prepared.pdf_bytes)
+        if prepared.kind != "pdf":
+            storage.save_raw_original(
+                tenant_id, document_id, version, prepared.original_extension, prepared.original_bytes
+            )
         storage.save_metadata_sidecar(
             tenant_id,
             document_id,
@@ -177,11 +236,13 @@ async def upload_documents(
                 "document_id": document_id,
                 "version": version,
                 "filename": filename,
+                "original_format": prepared.kind,
                 "customer_name": customer_name,
                 "account_owner": account_owner,
                 "meeting_date": meeting_date,
                 "classification": classification,
                 "sha256": checksum,
+                "uploaded_by": identity.sub,
                 "uploaded_at": now,
             },
         )
@@ -190,15 +251,24 @@ async def upload_documents(
             conn.execute(
                 "INSERT INTO document_versions (document_id, version, sha256, status, stage, file_path, "
                 "size_bytes, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (document_id, version, checksum, "queued", "queued", file_path, len(data), now, now),
+                (document_id, version, checksum, "queued", "queued", file_path, len(prepared.original_bytes), now, now),
             )
-        pipeline.log_event(document_id, version, "uploaded", "received", f"{len(data)} bytes")
+        received = f"{len(prepared.original_bytes)} bytes"
+        if prepared.kind != "pdf":
+            received += f" ({prepared.kind} converted to PDF, {len(prepared.pdf_bytes)} bytes)"
+        pipeline.log_event(document_id, version, "uploaded", "received", received)
         pipeline.log_event(document_id, version, "queued", "queued", "Waiting for a worker")
 
         await queue.enqueue(document_id, version)
 
         results.append(
-            {"filename": filename, "document_id": document_id, "version": version, "status": "queued"}
+            {
+                "filename": filename,
+                "document_id": document_id,
+                "version": version,
+                "status": "queued",
+                "original_format": prepared.kind,
+            }
         )
 
     return {"results": results}
@@ -342,7 +412,7 @@ def get_elements(
     document_id: str,
     version: int | None = None,
     element_type: str | None = None,
-    limit: int = 500,
+    limit: int = Query(500, ge=1, le=5000),
     identity: auth.Identity = Depends(auth.require_identity),
 ):
     _require_document_access(document_id, identity)
@@ -393,9 +463,16 @@ def get_figure(
     identity: auth.Identity = Depends(auth.require_identity),
 ):
     doc = _require_document_access(document_id, identity)
+    # `filename` is attacker-controlled. On Windows a backslash is a path
+    # separator, so a name like "..\\..\\..\\<other tenant>\\...\\source.pdf"
+    # would escape the figures directory. Allow-list the name, then confirm
+    # the resolved path is still directly inside the figures directory.
+    if not _FIGURE_NAME_RE.fullmatch(filename) or ".." in filename:
+        raise HTTPException(404, "Figure not found")
     v = version or doc["current_version"]
-    path = storage.figures_dir(doc["tenant_id"], document_id, v) / filename
-    if not path.exists():
+    base = storage.figures_dir(doc["tenant_id"], document_id, v).resolve()
+    path = (base / filename).resolve()
+    if path.parent != base or not path.is_file():
         raise HTTPException(404, "Figure not found")
     return FileResponse(str(path))
 
@@ -424,22 +501,45 @@ def get_document_file(
 
 
 @router.patch("/{document_id}")
-def update_document_metadata(
-    document_id: str, payload: dict, identity: auth.Identity = Depends(auth.require_identity)
+async def update_document_metadata(
+    document_id: str,
+    payload: dict,
+    request: Request,
+    identity: auth.Identity = Depends(auth.require_identity),
 ):
     """Manual metadata edit — fixes documents uploaded before auto-detection
-    existed, or corrects a wrong auto-detected/typed value."""
-    _require_document_access(document_id, identity)
+    existed, or corrects a wrong auto-detected/typed value.
+
+    `classification`, `account_owner` and `customer_name` feed the ACL
+    stamped onto every chunk and graph edge at ingestion time. Changing
+    them only on the `documents` row would leave search/chat/graph
+    enforcing the *old* ACL (a report reclassified from public to
+    confidential would stay visible tenant-wide), so an ACL-relevant edit
+    re-queues the document to rebuild those rows."""
+    doc_row = _require_document_access(document_id, identity)
     allowed = {"customer_name", "account_owner", "meeting_date", "classification"}
     updates = {k: v for k, v in payload.items() if k in allowed}
     if not updates:
         raise HTTPException(400, f"No editable fields provided. Allowed: {sorted(allowed)}")
+    for k, v in list(updates.items()):
+        if v is not None and not isinstance(v, str):
+            raise HTTPException(400, f"Invalid {k}")
+        updates[k] = _clean_classification(v) if k == "classification" else _clean_text_field(v, k)
 
     with db.tx() as conn:
         cols = ", ".join(f"{k} = ?" for k in updates)
         conn.execute(f"UPDATE documents SET {cols} WHERE document_id = ?", (*updates.values(), document_id))
 
-    return {"document_id": document_id, "updated": updates}
+    acl_fields = {"classification", "account_owner", "customer_name"}
+    acl_changed = any(k in acl_fields and updates[k] != doc_row.get(k) for k in updates)
+    if acl_changed:
+        version = doc_row["current_version"]
+        pipeline.log_event(document_id, version, "queued", "requeued", "Metadata changed -- rebuilding ACLs")
+        pipeline.set_status(document_id, version, "queued", "queued", error=None)
+        queue: pipeline.IngestionQueue = request.app.state.ingestion_queue
+        await queue.enqueue(document_id, version)
+
+    return {"document_id": document_id, "updated": updates, "acl_rebuild_queued": acl_changed}
 
 
 @router.post("/{document_id}/reprocess")

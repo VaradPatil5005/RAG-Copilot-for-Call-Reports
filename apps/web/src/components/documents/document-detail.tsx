@@ -18,10 +18,10 @@ import {
   getElements,
   reprocessDocument,
   updateDocumentMetadata,
-  figureUrl,
   type DocumentDetail,
   type ElementItem,
 } from "@/lib/api";
+import { AuthedFigure } from "./authed-figure";
 import { StatusBadge, isActiveStatus } from "./status-badge";
 
 interface Props {
@@ -413,8 +413,9 @@ function StructureTab({
               </div>
             ) : el.element_type === "figure" && el.figure_path ? (
               <div>
-                <img
-                  src={figureUrl(documentId, el.figure_path)}
+                <AuthedFigure
+                  documentId={documentId}
+                  figurePath={el.figure_path}
                   alt={el.text || "Extracted figure"}
                   className="max-h-40 rounded border border-border-subtle object-contain"
                 />
@@ -434,7 +435,7 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-lg border border-border-subtle bg-elevated/40 px-3 py-2">
       <p className="text-[10px] text-text-faint">{label}</p>
-      <p className="font-display text-[15px] font-semibold text-text">{value}</p>
+      <p className="font-display text-[15px] font-medium text-text">{value}</p>
     </div>
   );
 }

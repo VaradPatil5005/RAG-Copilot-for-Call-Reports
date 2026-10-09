@@ -12,7 +12,9 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
-DB_PATH = Path(__file__).resolve().parent.parent / "data" / "metadata.sqlite3"
+from app import config
+
+DB_PATH = config.DATA_DIR / "metadata.sqlite3"
 
 _lock = threading.Lock()
 _conn: sqlite3.Connection | None = None

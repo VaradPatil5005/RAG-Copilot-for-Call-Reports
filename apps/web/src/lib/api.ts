@@ -138,7 +138,7 @@ export interface SystemHealth {
 }
 
 export async function getSystemHealth(): Promise<SystemHealth> {
-  const res = await fetch(`${API_BASE}/system/health`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/system/health`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<SystemHealth>(res);
 }
 
@@ -158,7 +158,7 @@ export interface SystemMetrics {
 }
 
 export async function getSystemMetrics(): Promise<SystemMetrics> {
-  const res = await fetch(`${API_BASE}/system/metrics`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/system/metrics`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<SystemMetrics>(res);
 }
 
@@ -182,7 +182,7 @@ export interface AIInsightsResponse {
 }
 
 export async function getAIInsights(): Promise<AIInsightsResponse> {
-  const res = await fetch(`${API_BASE}/system/insights`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/system/insights`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<AIInsightsResponse>(res);
 }
 
@@ -211,7 +211,18 @@ export async function getElements(
 }
 
 export function figureUrl(documentId: string, figurePath: string): string {
-  return `${API_BASE}/documents/${documentId}/figures/${figurePath}`;
+  return `${API_BASE}/documents/${encodeURIComponent(documentId)}/figures/${encodeURIComponent(figurePath)}`;
+}
+
+/** Fetches a figure with the bearer token -- an `<img src>` can't send an
+ * Authorization header, so figures must be loaded as blobs. */
+export async function getFigureBlob(documentId: string, figurePath: string): Promise<Blob> {
+  const res = await fetch(figureUrl(documentId, figurePath), {
+    cache: "no-store",
+    headers: await getAuthHeaders(),
+  });
+  if (!res.ok) throw new Error(`Figure request failed (${res.status})`);
+  return res.blob();
 }
 
 export async function getDocumentPdfBlob(documentId: string): Promise<Blob> {
@@ -486,7 +497,7 @@ export interface ChatTrace {
 export async function listChatTraces(conversationId?: string): Promise<ChatTrace[]> {
   const qs = new URLSearchParams();
   if (conversationId) qs.set("conversation_id", conversationId);
-  const res = await fetch(`${API_BASE}/chat/traces?${qs.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/chat/traces?${qs.toString()}`, { cache: "no-store", headers: await getAuthHeaders() });
   const data = await jsonOrThrow<{ traces: ChatTrace[] }>(res);
   return data.traces;
 }
@@ -571,7 +582,7 @@ export interface AdminOverview {
 }
 
 export async function getAdminOverview(): Promise<AdminOverview> {
-  const res = await fetch(`${API_BASE}/system/admin/overview`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/system/admin/overview`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<AdminOverview>(res);
 }
 
@@ -594,7 +605,7 @@ export async function getAuditLog(params?: { endpoint?: string; tenant_id?: stri
   if (params?.endpoint) qs.set("endpoint", params.endpoint);
   if (params?.tenant_id) qs.set("tenant_id", params.tenant_id);
   qs.set("limit", String(params?.limit ?? 50));
-  const res = await fetch(`${API_BASE}/system/audit?${qs.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/system/audit?${qs.toString()}`, { cache: "no-store", headers: await getAuthHeaders() });
   const data = await jsonOrThrow<{ entries: AuditLogEntry[] }>(res);
   return data.entries;
 }
@@ -619,7 +630,7 @@ export interface EvaluationReport {
 }
 
 export async function getLatestEvaluation(): Promise<EvaluationReport> {
-  const res = await fetch(`${API_BASE}/evaluation/latest`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/evaluation/latest`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow<EvaluationReport>(res);
 }
 
@@ -635,12 +646,20 @@ export interface RetrievalEvalReport {
 }
 
 /** POST /evaluation/run -- fast, retrieval-only Hit Rate@k / MRR@k over the
- * seed 10-query gold set. Good for a quick sanity check between full runs. */
-export async function runRetrievalEval(params?: { top_k?: number; tenant_id?: string }): Promise<RetrievalEvalReport> {
+ * stratified gold set (defaults to all 317 queries). Good for a quick sanity check between full runs. */
+export async function runRetrievalEval(params?: {
+  top_k?: number;
+  tenant_id?: string;
+  use_v2_gold_set?: boolean;
+}): Promise<RetrievalEvalReport> {
   const res = await fetch(`${API_BASE}/evaluation/run`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ top_k: params?.top_k ?? 10, tenant_id: params?.tenant_id ?? "tenant-a" }),
+    headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
+    body: JSON.stringify({
+      top_k: params?.top_k ?? 10,
+      tenant_id: params?.tenant_id ?? "tenant-a",
+      use_v2_gold_set: params?.use_v2_gold_set ?? true,
+    }),
   });
   return jsonOrThrow<RetrievalEvalReport>(res);
 }
@@ -658,11 +677,11 @@ export async function runFullEvaluation(params?: {
 }): Promise<EvaluationReport> {
   const res = await fetch(`${API_BASE}/evaluation/run-full`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
     body: JSON.stringify({
       top_k: params?.top_k ?? 10,
       tenant_id: params?.tenant_id ?? "tenant-a",
-      use_v2_gold_set: params?.use_v2_gold_set ?? false,
+      use_v2_gold_set: params?.use_v2_gold_set ?? true,
       n_customers: params?.n_customers ?? 24,
       seed: params?.seed ?? 42,
     }),
@@ -687,7 +706,7 @@ export interface PolicyGoldCase {
 }
 
 export async function getPolicyGoldSet(): Promise<{ n_cases: number; cases: PolicyGoldCase[] }> {
-  const res = await fetch(`${API_BASE}/decision-eval/policy-gold-set`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/decision-eval/policy-gold-set`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow(res);
 }
 
@@ -722,14 +741,14 @@ export interface PolicyBlockReport {
 export async function runPolicyBlockEval(params?: { tenant_id?: string; top_k?: number }): Promise<PolicyBlockReport> {
   const res = await fetch(`${API_BASE}/decision-eval/run-policy-block`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await getAuthHeaders()) },
     body: JSON.stringify({ tenant_id: params?.tenant_id ?? "tenant-a", top_k: params?.top_k ?? 10 }),
   });
   return jsonOrThrow(res);
 }
 
 export async function getLatestPolicyBlockEval(): Promise<PolicyBlockReport> {
-  const res = await fetch(`${API_BASE}/decision-eval/latest-policy-block`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/decision-eval/latest-policy-block`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow(res);
 }
 
@@ -757,7 +776,7 @@ export interface DecisionEvalSummary {
 }
 
 export async function getDecisionEvalSummary(): Promise<DecisionEvalSummary> {
-  const res = await fetch(`${API_BASE}/decision-eval/summary`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/decision-eval/summary`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow(res);
 }
 
@@ -806,7 +825,7 @@ export interface ObservabilityDashboard {
 }
 
 export async function getObservabilityDashboard(): Promise<ObservabilityDashboard> {
-  const res = await fetch(`${API_BASE}/observability/dashboard`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/observability/dashboard`, { cache: "no-store", headers: await getAuthHeaders() });
   return jsonOrThrow(res);
 }
 

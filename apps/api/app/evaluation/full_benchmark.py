@@ -61,64 +61,68 @@ def _hit_and_rank(retrieved: list[dict[str, Any]], gold_customers: list[str]) ->
     return False, 0.0
 
 
+def _evaluate_single(q: dict, top_k: int, filters: search_index.SearchFilters) -> FullQueryResult:
+    start = time.monotonic()
+    agentic_result = agentic_retrieval.run(q["question"], top_k=top_k, filters=filters)
+    evidence = agentic_result.evidence
+    evidence_by_id = {c["chunk_id"]: c for c in evidence}
+
+    gen_result = generation.generate_structured_answer(q["question"], evidence)
+    validation = citation_validator.validate(gen_result.raw_json, evidence)
+    latency_ms = (time.monotonic() - start) * 1000
+
+    answer_json = validation.answer_json
+    abstained = bool(answer_json.get("abstained"))
+    answerable = q["answerable"]
+    abstention_correct = abstained == (not answerable)
+
+    hit, rr = _hit_and_rank(evidence, q.get("gold_customers", []))
+    relevancy, judge = quality_metrics.score_semantic_relevancy(q["question"], answer_json.get("answer") or "")
+    cpr = quality_metrics.score_citation_precision_recall(
+        answer_json.get("citations") or [], evidence_by_id, q.get("gold_customers", [])
+    )
+    faithfulness = quality_metrics.score_faithfulness(validation)
+
+    return FullQueryResult(
+        query_id=q["query_id"],
+        question=q["question"],
+        intent_category=q["intent_category"],
+        difficulty=q.get("difficulty", "unspecified"),
+        answerable=answerable,
+        hit=hit,
+        reciprocal_rank=rr,
+        abstained=abstained,
+        abstention_correct=abstention_correct,
+        semantic_relevancy=relevancy,
+        relevancy_judge=judge,
+        citation_precision=cpr.precision,
+        citation_recall=cpr.recall,
+        faithfulness=faithfulness,
+        latency_ms=round(latency_ms, 1),
+        answer_preview=(answer_json.get("answer") or "")[:200],
+        existence_check_failed=validation.summary["existence_check_failed"],
+        support_check_failed=validation.summary["support_check_failed"],
+        total_citations_checked=validation.summary["total"],
+    )
+
+
 def run_full_benchmark(
     queries: list[dict] | None = None,
     top_k: int = 10,
     tenant_id: str = "tenant-a",
     principals: list[str] | None = None,
+    max_workers: int = 10,
 ) -> dict:
+    from concurrent.futures import ThreadPoolExecutor
+
     queries = queries if queries is not None else GOLD_QUERIES
-    results: list[FullQueryResult] = []
     filters = search_index.SearchFilters(tenant_id=tenant_id, principals=principals)
 
-    for q in queries:
-        start = time.monotonic()
-        agentic_result = agentic_retrieval.run(q["question"], top_k=top_k, filters=filters)
-        evidence = agentic_result.evidence
-        evidence_by_id = {c["chunk_id"]: c for c in evidence}
-
-        gen_result = generation.generate_structured_answer(q["question"], evidence)
-        validation = citation_validator.validate(gen_result.raw_json, evidence)
-        latency_ms = (time.monotonic() - start) * 1000
-
-        answer_json = validation.answer_json
-        abstained = bool(answer_json.get("abstained"))
-        answerable = q["answerable"]
-        abstention_correct = abstained == (not answerable)
-
-        hit, rr = _hit_and_rank(evidence, q.get("gold_customers", []))
-        relevancy, judge = quality_metrics.score_semantic_relevancy(q["question"], answer_json.get("answer") or "")
-        cpr = quality_metrics.score_citation_precision_recall(
-            answer_json.get("citations") or [], evidence_by_id, q.get("gold_customers", [])
-        )
-        faithfulness = quality_metrics.score_faithfulness(validation)
-
-        results.append(
-            FullQueryResult(
-                query_id=q["query_id"],
-                question=q["question"],
-                intent_category=q["intent_category"],
-                difficulty=q.get("difficulty", "unspecified"),
-                answerable=answerable,
-                hit=hit,
-                reciprocal_rank=rr,
-                abstained=abstained,
-                abstention_correct=abstention_correct,
-                semantic_relevancy=relevancy,
-                relevancy_judge=judge,
-                citation_precision=cpr.precision,
-                citation_recall=cpr.recall,
-                faithfulness=faithfulness,
-                latency_ms=round(latency_ms, 1),
-                answer_preview=(answer_json.get("answer") or "")[:200],
-                # feature/decision-intelligence-layer, Phase B (additive):
-                # same `validation.summary` counts `citation_validator`
-                # already produces on this exact call, one line each.
-                existence_check_failed=validation.summary["existence_check_failed"],
-                support_check_failed=validation.summary["support_check_failed"],
-                total_citations_checked=validation.summary["total"],
-            )
-        )
+    if len(queries) <= 2:
+        results = [_evaluate_single(q, top_k, filters) for q in queries]
+    else:
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(queries))) as pool:
+            results = list(pool.map(lambda q: _evaluate_single(q, top_k, filters), queries))
 
     return _summarize(results)
 

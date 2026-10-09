@@ -89,7 +89,7 @@ export default function SearchPage() {
               placeholder="e.g. What risks were raised for Contoso?"
               aria-label="Search query"
               data-testid="search-input"
-              className="w-full rounded-xl border border-white/10 bg-surface/80 backdrop-blur-xl py-3 pl-10 pr-4 text-[13px] text-text placeholder:text-text-faint outline-none focus:border-evidence/50 focus:shadow-[0_0_20px_rgba(79,209,197,0.15)] transition-all"
+              className="w-full rounded-xl border border-white/10 bg-surface/80 backdrop-blur-xl py-3 pl-10 pr-4 text-[13px] text-text placeholder:text-text-faint outline-none focus:border-evidence/50 transition-all"
             />
           </div>
           <button
@@ -98,7 +98,7 @@ export default function SearchPage() {
             className={cn(
               "flex items-center gap-2 rounded-xl border px-4 py-3 text-[12px] font-medium transition-all duration-200",
               showFilters || activeFilterCount > 0
-                ? "border-primary/50 bg-primary/15 text-primary shadow-[0_0_12px_rgba(240,168,87,0.2)]"
+                ? "border-primary/50 bg-primary/15 text-primary"
                 : "border-white/10 bg-surface/70 text-text-muted hover:bg-elevated hover:text-text"
             )}
           >
@@ -111,7 +111,7 @@ export default function SearchPage() {
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-amber-500 hover:brightness-110 px-5 py-3 text-[12px] font-bold text-bg shadow-[0_0_15px_rgba(240,168,87,0.25)] transition-all disabled:opacity-40"
+            className="flex items-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press px-5 py-3 text-[12px] font-bold text-paper transition-all disabled:opacity-40"
           >
             {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {loading ? "Searching…" : "Search"}
@@ -228,11 +228,11 @@ function ResultCard({ result }: { result: SearchResultItem }) {
   return (
     <Link
       href={`/documents?doc=${encodeURIComponent(result.document_id)}`}
-      className="group block rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.06)] transition-all duration-300 hover:border-evidence/40 hover:bg-surface/90 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(79,209,197,0.08)] hover:-translate-y-0.5"
+      className="group block rounded-2xl border border-white/8 bg-surface/70 backdrop-blur-xl p-5 shadow-[inset_0_1px_0_0_rgba(230,213,189,0.06)] transition-all duration-300 hover:border-evidence/40 hover:bg-surface/90 hover:shadow-[0_8px_30px_rgba(0,0,0,0.5),0_0_20px_rgba(213,54,12,0.08)] hover:-translate-y-0.5"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-evidence/10 border border-evidence/25 text-evidence shadow-[0_0_10px_rgba(79,209,197,0.2)]">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-evidence/10 border border-evidence/25 text-evidence">
             <Icon className="h-4 w-4" strokeWidth={1.75} />
           </div>
           <div className="min-w-0">

@@ -25,10 +25,25 @@ from pathlib import Path
 
 import pytest
 
+import os
+import tempfile
+
 API_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(API_ROOT))
 
-DATA_DIR = API_ROOT / "data"
+# The suite wipes and re-ingests its data directory. It must NEVER be the
+# developer's real `apps/api/data/` (that is what this used to do -- a
+# test run silently deleted every locally uploaded report). Each session
+# gets its own throwaway directory unless TATHYX_TEST_DATA_DIR is set.
+DATA_DIR = Path(os.environ.get("TATHYX_TEST_DATA_DIR") or tempfile.mkdtemp(prefix="tathyx-test-data-")).resolve()
+if DATA_DIR == (API_ROOT / "data").resolve():
+    raise RuntimeError("Refusing to run tests against the real apps/api/data directory")
+os.environ["TATHYX_DATA_DIR"] = str(DATA_DIR)
+# Tests exercise /auth/dev-token, which is disabled by default.
+os.environ["AUTH_DEV_MODE"] = "true"
+os.environ.setdefault("APP_ENV", "test")
+os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "1000000")
+os.environ.setdefault("RATE_LIMIT_UPLOADS_PER_MINUTE", "1000000")
 
 
 def _wipe_data_dir() -> None:
@@ -213,6 +228,7 @@ def ingested(sample_pdf_paths):
         sub="test-runner",
         tenant_id="tenant-a",
         principals=["tenant:tenant-a", "owner:alice", "owner:carol", "customer:Contoso", "customer:Globex"],
+        role="super_admin",
     )
     client.headers.update({"Authorization": f"Bearer {default_token}"})
 

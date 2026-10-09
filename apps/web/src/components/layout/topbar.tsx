@@ -19,7 +19,7 @@ export function Topbar() {
       : "Free Discovery · Sign In";
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#06080F]/90 backdrop-blur-md px-6 relative z-10 select-none">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.06] bg-[#101010]/90 backdrop-blur-md px-6 relative z-10 select-none">
       {/* Left: Perplexity-style Plan Chip */}
       <div className="flex items-center gap-3">
         <button
@@ -31,7 +31,7 @@ export function Topbar() {
           <span className="font-medium text-white">{planBadgeText.split("·")[0].trim()}</span>
           {planBadgeText.includes("·") && (
             <>
-              <span className="text-[#52525b]">·</span>
+              <span className="text-[#6B6157]">·</span>
               <span className="text-text-faint">{planBadgeText.split("·")[1].trim()}</span>
             </>
           )}
@@ -39,8 +39,8 @@ export function Topbar() {
 
         {/* Incognito badge shown ONLY when in Copilot */}
         {isCopilot && isIncognito && (
-          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-evidence/40 bg-evidence/10 text-evidence text-[11px] font-mono font-medium shadow-[0_0_10px_rgba(79,209,197,0.25)] animate-pulse">
-            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_6px_rgba(79,209,197,0.8)]" />
+          <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-evidence/40 bg-evidence/10 text-evidence text-[11px] font-mono font-medium animate-pulse">
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence" />
             <span>INCOGNITO ACTIVE</span>
           </div>
         )}
@@ -70,7 +70,7 @@ export function Topbar() {
             className={cn(
               "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] transition-all cursor-pointer border",
               isIncognito
-                ? "bg-evidence/15 text-evidence border-evidence/40 shadow-[0_0_12px_rgba(79,209,197,0.3)]"
+                ? "bg-evidence/15 text-evidence border-evidence/40"
                 : "text-text-muted hover:text-white hover:bg-elevated/60 border-transparent"
             )}
           >

@@ -89,7 +89,7 @@ export function CitationPillWithPopover({
         className={cn(
           "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium transition-all duration-150 border select-none cursor-pointer",
           isOpen
-            ? "border-primary/60 bg-primary/20 text-white shadow-[0_0_12px_rgba(240,168,87,0.25)]"
+            ? "border-primary/60 bg-primary/20 text-white"
             : "border-border-subtle bg-elevated/70 text-text-muted hover:border-primary/40 hover:text-text hover:bg-elevated"
         )}
         aria-label={`View ${totalSources} sources`}
@@ -103,7 +103,7 @@ export function CitationPillWithPopover({
         <div
           role="dialog"
           aria-label="Source citation details"
-          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 sm:w-96 rounded-2xl border border-white/10 bg-[#12161F]/95 backdrop-blur-xl p-4 shadow-[0_20px_60px_rgba(0,0,0,0.8)] text-left animate-in fade-in zoom-in-95 duration-150"
+          className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-2 w-80 sm:w-96 rounded-2xl border border-white/10 bg-[#1A1817]/95 backdrop-blur-xl p-4 shadow-[0_20px_60px_rgba(0,0,0,0.8)] text-left animate-in fade-in zoom-in-95 duration-150"
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
         >
@@ -205,7 +205,7 @@ export function CitationPillWithPopover({
           </div>
 
           {/* Tiny down pointer triangle */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-solid border-t-[#12161F] border-t-8 border-x-transparent border-x-8 border-b-0 pointer-events-none drop-shadow-md" />
+          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px] border-solid border-t-[#1A1817] border-t-8 border-x-transparent border-x-8 border-b-0 pointer-events-none drop-shadow-md" />
         </div>
       )}
     </span>

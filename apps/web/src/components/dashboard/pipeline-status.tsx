@@ -57,7 +57,7 @@ export function PipelineStatusPanel() {
   ).length;
 
   return (
-    <div className="lg:col-span-2 relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all">
+    <div className="lg:col-span-2 relative overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101010]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all">
       {/* Top Specular Laser Line */}
       <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
       
@@ -67,18 +67,18 @@ export function PipelineStatusPanel() {
       <div className="flex items-center justify-between relative z-10">
         <div>
           <div className="flex items-center gap-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-evidence shadow-[0_0_8px_rgba(79,209,197,0.9)] animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-evidence animate-pulse" />
             <p className="font-mono text-[10px] font-bold uppercase tracking-widest text-zinc-400">
-              SYS.PIPELINE // QUANTUM INGESTION MESH
+              Ingestion pipeline
             </p>
           </div>
-          <p className="mt-1 font-display text-base font-bold text-white tracking-tight">
-            Autonomous Document Processing Stream
+          <p className="mt-1 font-display text-base font-medium text-white tracking-tight">
+            Document processing
           </p>
         </div>
         {documents.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] rounded-full border border-evidence/30 bg-evidence/10 px-3 py-1 text-evidence font-medium shadow-[0_0_12px_rgba(79,209,197,0.2)]">
+            <span className="inline-flex items-center gap-1.5 font-mono text-[11px] rounded-full border border-evidence/30 bg-evidence/10 px-3 py-1 text-evidence font-medium">
               <span className="h-1.5 w-1.5 rounded-full bg-evidence animate-pulse" />
               {documents.length} ingested · 100% indexed
             </span>
@@ -97,9 +97,9 @@ export function PipelineStatusPanel() {
                 {/* Glowing Optical Aperture Node (No chunky boxes!) */}
                 <div className="relative flex items-center justify-center">
                   {active ? (
-                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-evidence/15 border border-evidence shadow-[0_0_18px_rgba(79,209,197,0.6)]">
+                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-evidence/15 border border-evidence">
                       <span className="absolute h-4 w-4 rounded-full bg-evidence/30 animate-ping" />
-                      <span className="h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_8px_#ffffff]" />
+                      <span className="h-2.5 w-2.5 rounded-full bg-white" />
                     </div>
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.02] text-zinc-500 font-mono text-[10px]">
@@ -135,7 +135,7 @@ export function PipelineStatusPanel() {
                 className={cn(
                   "h-[2px] w-6 shrink-0 -mt-6 transition-all duration-500",
                   active
-                    ? "bg-gradient-to-r from-evidence via-cyan-400 to-evidence shadow-[0_0_10px_rgba(79,209,197,0.7)]"
+                    ? "bg-gradient-to-r from-evidence via-cyan-400 to-evidence"
                     : "bg-white/[0.08]"
                 )}
               />
@@ -147,7 +147,7 @@ export function PipelineStatusPanel() {
           <div key={label} className="flex items-center shrink-0">
             <div className="flex flex-col items-center gap-2.5 min-w-[100px]">
               <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-white/15 bg-white/[0.02] text-zinc-600 font-mono text-[10px]">
-                ✦
+                ·
               </div>
               <div className="flex flex-col items-center text-center">
                 <span className="text-[11px] leading-tight font-medium max-w-[90px] text-zinc-500">

@@ -73,6 +73,8 @@ def score_semantic_relevancy(question: str, answer: str) -> tuple[float, str]:
         return _heuristic_relevancy(question, answer), "heuristic_fallback"
     try:
         provider = generation.get_default_provider()
+        if hasattr(provider, "is_rate_limited") and provider.is_rate_limited():
+            return _heuristic_relevancy(question, answer), "heuristic_fallback"
         prompt = f"QUESTION:\n{question}\n\nANSWER:\n{answer}"
         raw = provider.generate(_RELEVANCY_RUBRIC, prompt, stream=False, max_tokens=100)
         if not isinstance(raw, str):

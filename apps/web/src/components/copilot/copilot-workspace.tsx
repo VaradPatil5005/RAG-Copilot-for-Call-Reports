@@ -71,6 +71,7 @@ import {
   exportToDocx,
   copyShareLink,
 } from "./copilot-export";
+import { BrandMark } from "@/components/ui/brand";
 import {
   generateSessionId,
   generateSessionTitle,
@@ -239,7 +240,7 @@ function ThinkingSteps({
               key={s}
               className={cn(
                 "flex items-center gap-1.5 text-[11px] font-medium transition-all duration-300",
-                isDone && "text-[#d4d4d8]",
+                isDone && "text-[#CFC0A9]",
                 isCurrent && "text-white font-semibold",
                 !isDone && !isCurrent && "text-text-faint/50"
               )}
@@ -257,7 +258,7 @@ function ThinkingSteps({
 
       <div className="mt-2 h-[2px] w-full rounded-full bg-white/10 overflow-hidden">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-primary to-evidence transition-all duration-500 ease-out shadow-[0_0_8px_rgba(79,209,197,0.6)]"
+          className="h-full rounded-full bg-gradient-to-r from-primary to-evidence transition-all duration-500 ease-out"
           style={{ width: `${((stageIdx + 1) / STAGE_ORDER.length) * 100}%` }}
         />
       </div>
@@ -363,8 +364,8 @@ function TurnBubble({
                   className={cn(
                     "font-mono text-[10px] uppercase rounded-full px-2.5 py-0.5 border font-semibold",
                     turn.answer.confidence === "high" && "bg-white/10 text-white border-white/20",
-                    turn.answer.confidence === "medium" && "bg-white/[0.06] text-[#d4d4d8] border-white/10",
-                    turn.answer.confidence === "low" && "bg-white/[0.03] text-[#71717a] border-white/10"
+                    turn.answer.confidence === "medium" && "bg-white/[0.06] text-[#CFC0A9] border-white/10",
+                    turn.answer.confidence === "low" && "bg-white/[0.03] text-[#8E8273] border-white/10"
                   )}
                 >
                   {turn.answer.confidence} Confidence
@@ -786,7 +787,7 @@ export function CopilotWorkspace() {
   };
 
   return (
-    <div className="flex h-full w-full overflow-hidden bg-[#0A0D14]">
+    <div className="flex h-full w-full overflow-hidden bg-[#101010]">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 rounded-full bg-primary/95 px-4 py-2 text-xs font-semibold text-bg shadow-[0_10px_30px_rgba(0,0,0,0.8)] backdrop-blur-md animate-in fade-in slide-in-from-top-4 duration-200">
@@ -798,7 +799,7 @@ export function CopilotWorkspace() {
       {/* Rename Modal */}
       {isRenameOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121620] p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1A1817] p-6 shadow-2xl">
             <h3 className="text-base font-bold text-white mb-1.5">Rename Session</h3>
             <p className="text-xs text-zinc-400 mb-4">
               Give this chat session a memorable, custom name.
@@ -822,7 +823,7 @@ export function CopilotWorkspace() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-bg hover:bg-primary-hover transition-colors"
+                  className="rounded-lg bg-brand-fill px-4 py-2 text-xs font-semibold text-paper hover:bg-brand-press transition-colors"
                 >
                   Save Title
                 </button>
@@ -851,9 +852,9 @@ export function CopilotWorkspace() {
       />
 
       {/* Main Chat Workspace (Spacious & Clean) */}
-      <div className="flex flex-1 flex-col min-w-0 bg-[#0A0D14] relative">
+      <div className="flex flex-1 flex-col min-w-0 bg-[#101010] relative">
         {/* Top Perplexity Action Bar */}
-        <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#0C101A]/80 backdrop-blur-md px-6 py-2.5 z-20">
+        <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#141312]/80 backdrop-blur-md px-6 py-2.5 z-20">
           <div className="flex items-center gap-3 min-w-0">
             <h1 className="truncate text-sm font-semibold text-white tracking-tight">
               {sessionTitle}
@@ -872,7 +873,7 @@ export function CopilotWorkspace() {
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs transition-all cursor-pointer border",
                 isIncognito
-                  ? "bg-evidence/15 text-evidence border-evidence/40 shadow-[0_0_12px_rgba(79,209,197,0.3)]"
+                  ? "bg-evidence/15 text-evidence border-evidence/40"
                   : "bg-white/[0.04] text-zinc-300 hover:text-white hover:bg-white/[0.08] border-white/[0.06]"
               )}
             >
@@ -889,7 +890,7 @@ export function CopilotWorkspace() {
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all",
                   sourcesDrawerOpen
-                    ? "bg-primary/20 text-white border border-primary/40 shadow-[0_0_12px_rgba(240,168,87,0.2)]"
+                    ? "bg-primary/20 text-white border border-primary/40"
                     : "bg-white/[0.04] text-zinc-300 hover:bg-white/[0.08] hover:text-white border border-white/[0.06]"
                 )}
                 title="View Grounded Sources"
@@ -923,7 +924,7 @@ export function CopilotWorkspace() {
               </button>
 
               {optionsMenuOpen && (
-                <div className="absolute right-0 top-full mt-1.5 w-72 rounded-2xl border border-white/10 bg-[#121620]/95 backdrop-blur-xl p-2.5 shadow-2xl z-50 text-left animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 top-full mt-1.5 w-72 rounded-2xl border border-white/10 bg-[#1A1817]/95 backdrop-blur-xl p-2.5 shadow-2xl z-50 text-left animate-in fade-in zoom-in-95 duration-150">
                   {/* Session Header */}
                   <div className="px-3 py-2 border-b border-white/[0.06] mb-1">
                     <p className="text-xs font-semibold text-white line-clamp-2 leading-snug">
@@ -1038,23 +1039,24 @@ export function CopilotWorkspace() {
             {turns.length === 0 ? (
               <div className="flex min-h-full flex-col items-center justify-center py-6 px-4 my-auto">
                 <div className="w-full max-w-xl text-center">
-                  {/* Glowing Sparkles Glyph */}
-                  <div className="mx-auto mb-3.5 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 shadow-[0_0_25px_rgba(240,168,87,0.25)]">
+                  <div className="mx-auto mb-6 flex justify-center">
                     {isIncognito ? (
-                      <Glasses className="h-6 w-6 text-evidence" strokeWidth={1.75} />
+                      <span className="flex h-11 w-11 items-center justify-center rounded-[10px] border border-border bg-elevated">
+                        <Glasses className="h-5 w-5 text-text-muted" strokeWidth={1.75} />
+                      </span>
                     ) : (
-                      <Sparkles className="h-6 w-6 text-primary" strokeWidth={1.75} />
+                      <BrandMark className="h-11 w-11 rounded-[10px] text-[26px]" />
                     )}
                   </div>
 
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="font-mono text-[10px] font-bold uppercase tracking-widest text-primary">
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <span className="h-px w-6 bg-brand" aria-hidden="true" />
+                    <span className="eyebrow text-text-muted">
                       {isIncognito ? "INCOGNITO SESSION" : "DECISION INTELLIGENCE COPILOT"}
                     </span>
                   </div>
 
-                  <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-white mb-2">
+                  <h2 className="font-display text-[2.1rem] sm:text-[2.75rem] font-medium leading-[1.05] text-text mb-3">
                     {isIncognito ? "You're incognito" : "What would you like to know?"}
                   </h2>
 
@@ -1101,7 +1103,7 @@ export function CopilotWorkspace() {
 
           {/* Collapsible Grounded Sources Side-Drawer */}
           {sourcesDrawerOpen && (
-            <div className="w-80 sm:w-96 shrink-0 border-l border-white/[0.08] bg-[#0A0D15]/95 backdrop-blur-xl flex flex-col z-30 animate-in slide-in-from-right-8 duration-200">
+            <div className="w-80 sm:w-96 shrink-0 border-l border-white/[0.08] bg-[#101010]/95 backdrop-blur-xl flex flex-col z-30 animate-in slide-in-from-right-8 duration-200">
               <div className="flex items-center justify-between border-b border-white/[0.06] p-4">
                 <div className="flex items-center gap-2">
                   <BookOpen className="h-4 w-4 text-primary" />
@@ -1133,7 +1135,7 @@ export function CopilotWorkspace() {
         </div>
 
         {/* Bottom Input Area (Cleanly Anchored at Bottom) */}
-        <div className="shrink-0 border-t border-white/[0.08] bg-[#0A0D15]/95 backdrop-blur-xl px-4 md:px-8 pt-3.5 pb-5">
+        <div className="shrink-0 border-t border-white/[0.08] bg-[#101010]/95 backdrop-blur-xl px-4 md:px-8 pt-3.5 pb-5">
           <div className="mx-auto max-w-4xl">
             {/* Incognito Notice */}
             {isIncognito && (
@@ -1152,7 +1154,7 @@ export function CopilotWorkspace() {
             )}
 
             {/* Input Box */}
-            <div className="relative flex items-center rounded-2xl border border-white/[0.12] bg-[#121620] px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-primary/60 focus-within:shadow-[0_0_25px_rgba(240,168,87,0.18)] transition-all">
+            <div className="relative flex items-center rounded-2xl border border-white/[0.12] bg-[#1A1817] px-4 py-2.5 shadow-[0_8px_32px_rgba(0,0,0,0.6)] focus-within:border-primary/60 transition-all">
               <input
                 ref={inputRef}
                 value={input}
@@ -1179,7 +1181,7 @@ export function CopilotWorkspace() {
                 className={cn(
                   "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl transition-all ml-2",
                   input.trim()
-                    ? "bg-primary text-bg font-bold shadow-[0_0_15px_rgba(240,168,87,0.4)] hover:scale-105 active:scale-95 cursor-pointer"
+                    ? "bg-brand-fill text-paper font-bold hover:bg-brand-press hover:scale-105 active:scale-95 cursor-pointer"
                     : "bg-white/5 text-zinc-600 cursor-not-allowed"
                 )}
               >

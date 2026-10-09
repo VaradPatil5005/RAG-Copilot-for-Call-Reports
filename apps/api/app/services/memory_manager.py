@@ -96,13 +96,16 @@ def upsert_user_memory(
     return memory_id
 
 
-def delete_user_memory(memory_id: str, tenant_id: str) -> bool:
-    """Deletes a user memory item by ID."""
+def delete_user_memory(memory_id: str, tenant_id: str, user_id: str | None = None) -> bool:
+    """Deletes a user memory item by ID. When `user_id` is given, only that
+    user's own memory can be deleted (prevents cross-user deletion)."""
+    sql = "DELETE FROM user_memories WHERE memory_id = ? AND tenant_id = ?"
+    params: list = [memory_id, tenant_id]
+    if user_id is not None:
+        sql += " AND user_id = ?"
+        params.append(user_id)
     with db.tx() as conn:
-        res = conn.execute(
-            "DELETE FROM user_memories WHERE memory_id = ? AND tenant_id = ?",
-            (memory_id, tenant_id),
-        )
+        res = conn.execute(sql, params)
         return res.rowcount > 0
 
 

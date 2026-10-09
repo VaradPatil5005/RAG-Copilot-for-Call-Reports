@@ -172,7 +172,7 @@ def test_curator_lifecycle_and_audit():
 def test_learning_router_endpoints():
     db.init_db()
     client = TestClient(app)
-    token = auth.create_dev_token(sub="analyst-web", tenant_id="tenant-a", principals=["tenant:tenant-a"])
+    token = auth.create_dev_token(sub="analyst-web", tenant_id="tenant-a", principals=["tenant:tenant-a"], role="admin")
     headers = {"Authorization": f"Bearer {token}"}
 
     # 1. Check status

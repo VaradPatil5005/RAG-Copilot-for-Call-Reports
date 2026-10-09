@@ -8,10 +8,11 @@ service health checks (queue depth, Azure OpenAI quota, index replica
 health) and a real dashboard (Azure Monitor/App Insights equivalent) remain
 Phase 6/8 scope.
 """
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Query, Request
 
 from app import db
-from app.services import embeddings, generation, search_index
+from app.routers.documents import _document_authorized
+from app.services import auth, embeddings, generation, search_index
 
 router = APIRouter(prefix="/system", tags=["system"])
 
@@ -55,7 +56,7 @@ def _percentile(sorted_values: list[float], pct: float) -> float | None:
     return sorted_values[idx]
 
 
-@router.post("/disaster-recovery/drill")
+@router.post("/disaster-recovery/drill", dependencies=[Depends(auth.require_super_admin)])
 def disaster_recovery_drill() -> dict:
     """Phase 6.5: the actual DR drill -- rebuilds the full searchable
     index (metadata rows, elements, chunks, FTS5, hnswlib vectors, graph)
@@ -79,11 +80,19 @@ def disaster_recovery_drill() -> dict:
 
 
 @router.get("/audit")
-def audit_log(limit: int = 100, tenant_id: str | None = None, endpoint: str | None = None) -> dict:
+def audit_log(
+    limit: int = Query(100, ge=1, le=1000),
+    tenant_id: str | None = None,
+    endpoint: str | None = None,
+    identity: auth.Identity = Depends(auth.require_admin),
+) -> dict:
     """Phase 6.3: queryable audit trail -- for any given answer, which
     identity asked, what ACL filter was actually built, and which
     evidence chunk_ids were actually authorized and returned. Read-only;
-    surfaced directly in the Admin panel (Phase 6.6)."""
+    surfaced directly in the Admin panel (Phase 6.6). Org admins only
+    ever see their own tenant; only a super admin can look across tenants."""
+    if not identity.has_role("super_admin"):
+        tenant_id = identity.tenant_id
     conn = db.get_connection()
     sql = "SELECT * FROM access_audit_log"
     params: list = []
@@ -106,7 +115,14 @@ def audit_log(limit: int = 100, tenant_id: str | None = None, endpoint: str | No
 
 
 @router.get("/metrics")
-def metrics(limit: int = 500) -> dict:
+def metrics_endpoint(
+    limit: int = Query(500, ge=1, le=5000),
+    identity: auth.Identity = Depends(auth.require_identity),
+) -> dict:
+    return metrics(limit=limit, tenant_id=identity.tenant_id)
+
+
+def metrics(limit: int = 500, tenant_id: str | None = None) -> dict:
     """Aggregate, monitoring-friendly stats over recent `chat_traces`
     (blueprint Section 4.4): abstention rate, citation-validation pass
     rate, and latency percentiles. Not a replacement for Azure
@@ -114,13 +130,17 @@ def metrics(limit: int = 500) -> dict:
     0001, good enough to catch drift (e.g. unsupported-claim rate rising)
     during development."""
     conn = db.get_connection()
-    rows = db.rows_to_list(
-        conn.execute(
-            "SELECT confidence, abstained, latency_ms, citation_validation, provider_is_fallback, "
-            "json_retry_used FROM chat_traces ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        ).fetchall()
+    sql = (
+        "SELECT confidence, abstained, latency_ms, citation_validation, provider_is_fallback, "
+        "json_retry_used FROM chat_traces"
     )
+    params: list = []
+    if tenant_id is not None:
+        sql += " WHERE tenant_id = ?"
+        params.append(tenant_id)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params.append(limit)
+    rows = db.rows_to_list(conn.execute(sql, params).fetchall())
     n = len(rows)
     if n == 0:
         return {"n_traces": 0, "message": "No chat_traces recorded yet."}
@@ -177,8 +197,8 @@ def _cost_for_model(model_name: str, total_tokens: int) -> tuple[float | None, s
     return None, "unknown pricing -- model not in this project's documented free-tier list"
 
 
-@router.get("/admin/cost-usage")
-def cost_usage(days: int = 30) -> dict:
+@router.get("/admin/cost-usage", dependencies=[Depends(auth.require_super_admin)])
+def cost_usage(days: int = Query(30, ge=1, le=365)) -> dict:
     """Phase 6.6 Admin panel -- Cost/usage view. Real token counts from
     each provider's own API response (`chat_traces.prompt_tokens` etc.,
     populated in generation.py -- never estimated), grouped by model and
@@ -223,7 +243,7 @@ def cost_usage(days: int = 30) -> dict:
     }
 
 
-@router.get("/admin/overview")
+@router.get("/admin/overview", dependencies=[Depends(auth.require_super_admin)])
 def admin_overview(request: Request) -> dict:
     """Phase 6.6: everything the Admin panel needs in one call -- system
     health, index status, ingestion queue depth, recent security events,
@@ -277,7 +297,7 @@ def admin_overview(request: Request) -> dict:
             "document_access_summary": document_summary,
         },
         "chat_metrics": metrics(),
-        "cost_usage": cost_usage(),
+        "cost_usage": cost_usage(days=30),
         "latest_evaluation_run": db.row_to_dict(
             conn.execute(
                 "SELECT run_id, kind, n_queries, created_at FROM evaluation_runs ORDER BY created_at DESC LIMIT 1"
@@ -287,11 +307,24 @@ def admin_overview(request: Request) -> dict:
 
 
 @router.get("/insights")
-def ai_insights(limit: int = 20) -> dict:
+def ai_insights(
+    limit: int = Query(20, ge=1, le=200),
+    identity: auth.Identity = Depends(auth.require_identity),
+) -> dict:
     """Synthesizes cross-report intelligence and actionable signals across
-    all ingested call reports: active risks, action commitments, and competitor mentions.
-    """
+    the caller's authorized call reports: active risks, action commitments,
+    and competitor mentions. Scoped to the caller's tenant *and* filtered
+    through the same document ACL rule as /documents, so it never reveals
+    content from a report the caller couldn't open directly."""
     conn = db.get_connection()
+    tenant_id = identity.tenant_id
+    authorized_doc_ids = {
+        r["document_id"]
+        for r in db.rows_to_list(
+            conn.execute("SELECT * FROM documents WHERE tenant_id = ?", (tenant_id,)).fetchall()
+        )
+        if _document_authorized(r, identity)
+    }
     items: list[dict] = []
 
     # 1. Narrative graph-extracted risks (e.g. Contoso, Globex)
@@ -302,8 +335,9 @@ def ai_insights(limit: int = 20) -> dict:
             FROM graph_edges ge
             JOIN documents d ON d.document_id = ge.source_document_id
             LEFT JOIN chunks c ON c.chunk_id = ge.source_chunk_id
-            WHERE ge.predicate = 'HAS_RISK'
-            """
+            WHERE ge.predicate = 'HAS_RISK' AND d.tenant_id = ?
+            """,
+            (tenant_id,),
         ).fetchall()
     )
     for r in risk_edges:
@@ -340,8 +374,9 @@ def ai_insights(limit: int = 20) -> dict:
             SELECT d.document_id, d.filename, d.customer_name, c.table_json
             FROM chunks c
             JOIN documents d ON d.document_id = c.document_id
-            WHERE c.section_path LIKE '%risk%' AND c.chunk_type = 'table'
-            """
+            WHERE c.section_path LIKE '%risk%' AND c.chunk_type = 'table' AND d.tenant_id = ?
+            """,
+            (tenant_id,),
         ).fetchall()
     )
     for rt in risk_tables:
@@ -378,8 +413,9 @@ def ai_insights(limit: int = 20) -> dict:
             SELECT d.document_id, d.filename, d.customer_name, c.table_json
             FROM chunks c
             JOIN documents d ON d.document_id = c.document_id
-            WHERE c.section_path LIKE '%Action register%' AND c.chunk_type = 'table'
-            """
+            WHERE c.section_path LIKE '%Action register%' AND c.chunk_type = 'table' AND d.tenant_id = ?
+            """,
+            (tenant_id,),
         ).fetchall()
     )
     for at in action_tables:
@@ -415,9 +451,10 @@ def ai_insights(limit: int = 20) -> dict:
             SELECT d.document_id, d.filename, d.customer_name, ge.object_node_id
             FROM graph_edges ge
             JOIN documents d ON d.document_id = ge.source_document_id
-            WHERE ge.predicate = 'MENTIONED_COMPETITOR'
+            WHERE ge.predicate = 'MENTIONED_COMPETITOR' AND d.tenant_id = ?
             GROUP BY d.document_id, ge.object_node_id
-            """
+            """,
+            (tenant_id,),
         ).fetchall()
     )
     for ce in comp_edges:
@@ -436,6 +473,7 @@ def ai_insights(limit: int = 20) -> dict:
             "due_date": "Ongoing",
         })
 
+    items = [it for it in items if it.get("document_id") in authorized_doc_ids]
     return {
         "n_insights": len(items),
         "insights": items[:limit],

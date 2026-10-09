@@ -93,7 +93,7 @@ export function SearchWorkspace() {
           <button
             onClick={runSearch}
             disabled={!query.trim() || status === "loading"}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-[12px] font-medium text-bg transition-opacity disabled:opacity-40"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-brand-fill hover:bg-brand-press px-4 py-2.5 text-[12px] font-medium text-paper transition-opacity disabled:opacity-40"
           >
             {status === "loading" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             Search

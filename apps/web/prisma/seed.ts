@@ -4,6 +4,12 @@ import * as argon2 from "@node-rs/argon2";
 const prisma = new PrismaClient();
 
 async function main() {
+  // These accounts have passwords published in this repository. Seeding
+  // them into a production database would hand out a super-admin login.
+  if (process.env.NODE_ENV === "production" && process.env.SEED_DEMO_USERS !== "true") {
+    console.error("Refusing to seed demo users with known passwords in production (set SEED_DEMO_USERS=true to override).");
+    process.exit(1);
+  }
   console.log("🌱 Seeding Tathyx AI RBAC users and institutional organizations...");
 
   // 1. Create Default Organizations

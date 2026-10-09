@@ -81,7 +81,7 @@ export default function DecisionEvalPage() {
           <button
             onClick={handleRun}
             disabled={running}
-            className="flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-[12px] font-medium text-white transition-opacity disabled:opacity-50"
+            className="flex items-center gap-1.5 rounded-lg bg-brand-fill hover:bg-brand-press px-3.5 py-2 text-[12px] font-medium text-paper transition-opacity disabled:opacity-50"
           >
             {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <PlayCircle className="h-3.5 w-3.5" />}
             Run policy-block eval

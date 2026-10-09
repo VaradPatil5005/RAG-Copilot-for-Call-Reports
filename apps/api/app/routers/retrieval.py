@@ -202,7 +202,7 @@ def table_lookup(req: TableLookupRequest, identity: auth.Identity = Depends(auth
     return {"results": [_result_out(c) for c in rows], "count": len(rows)}
 
 
-@router.post("/search/reindex")
+@router.post("/search/reindex", dependencies=[Depends(auth.require_super_admin)])
 def reindex() -> dict:
     """Phase 6.5: a real blue/green reindex -- builds a brand-new index
     version from `chunks` while the currently-active index keeps serving
@@ -212,7 +212,7 @@ def reindex() -> dict:
     return search_index.rebuild_index_blue_green()
 
 
-@router.get("/search/index-versions")
+@router.get("/search/index-versions", dependencies=[Depends(auth.require_admin)])
 def index_versions() -> dict:
     return {"versions": search_index.list_index_versions()}
 
@@ -221,6 +221,6 @@ class RollbackRequest(BaseModel):
     to_version: str
 
 
-@router.post("/search/rollback")
+@router.post("/search/rollback", dependencies=[Depends(auth.require_super_admin)])
 def rollback(req: RollbackRequest) -> dict:
     return search_index.rollback_active_index(req.to_version)

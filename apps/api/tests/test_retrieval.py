@@ -24,7 +24,11 @@ def test_chunks_created_with_sane_token_sizes(ingested):
     assert len(rows) > 0, "expected chunks to be created for all three documents"
 
     doc_ids = set(ingested["doc_ids"].values())
-    assert {r["document_id"] for r in rows} <= doc_ids
+    # Other test modules legitimately ingest extra documents into the same
+    # session store (e.g. test_phase6_acl's tenant-b report), so assert that
+    # every fixture document produced chunks rather than that nothing else exists.
+    assert doc_ids <= {r["document_id"] for r in rows}
+    rows = [r for r in rows if r["document_id"] in doc_ids]
 
     passage_rows = [r for r in rows if r["chunk_type"] == "passage"]
     assert passage_rows, "expected at least one passage chunk"
@@ -110,9 +114,16 @@ def test_every_chunk_has_an_embedding_model_recorded(ingested):
 
 
 def test_every_chunk_is_present_in_the_vector_index(ingested):
-    conn = db.get_connection()
-    chunk_ids = {r["chunk_id"] for r in db.rows_to_list(conn.execute("SELECT chunk_id FROM chunks").fetchall())}
-    mgr = search_index.get_index_manager()
+    # Use the app's live module objects: conftest re-imports `app.*` after
+    # this file was collected, so the module-level `search_index`/`db`
+    # imports above are a second copy holding its own stale in-memory index.
+    import importlib
+
+    live_db = importlib.import_module("app.db")
+    live_index = importlib.import_module("app.services.search_index")
+    conn = live_db.get_connection()
+    chunk_ids = {r["chunk_id"] for r in live_db.rows_to_list(conn.execute("SELECT chunk_id FROM chunks").fetchall())}
+    mgr = live_index.get_index_manager()
     indexed_ids = set(mgr._id_map["chunk_to_label"].keys())
     assert chunk_ids <= indexed_ids
 
@@ -264,7 +275,8 @@ def test_reindex_rebuilds_without_data_loss(ingested):
 
     resp = client.post("/search/reindex")
     assert resp.status_code == 200
-    assert resp.json()["reindexed_vectors"] == chunk_count_before
+    # Phase 6.5 blue/green rebuild reports the new version's vector count as `new_count`.
+    assert resp.json()["new_count"] == chunk_count_before
 
     # chunks (source of truth) untouched by a vector-index rebuild
     chunk_count_after = conn.execute("SELECT COUNT(*) FROM chunks").fetchone()[0]

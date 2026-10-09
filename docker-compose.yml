@@ -13,8 +13,11 @@ services:
       - LLM_PROVIDER=auto
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
-      - AUTH_SECRET=${AUTH_SECRET:-local-dev-insecure-secret-do-not-use-in-production}
-      - AUTH_DEV_MODE=${AUTH_DEV_MODE:-true}
+      # Required -- `docker compose up` fails fast if unset (no insecure default).
+      - AUTH_SECRET=${AUTH_SECRET:?set AUTH_SECRET (same value for api and web)}
+      - AUTH_DEV_MODE=false
+      - APP_ENV=${APP_ENV:-production}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
     volumes:
       - api-data:/app/data
     restart: unless-stopped
@@ -24,10 +27,19 @@ services:
       context: ./apps/web
       dockerfile: Dockerfile
       args:
-        - NEXT_PUBLIC_API_BASE=http://localhost:8000
+        - NEXT_PUBLIC_API_BASE=${NEXT_PUBLIC_API_BASE:-http://localhost:8000}
+        - NEXT_PUBLIC_TURNSTILE_SITE_KEY=${NEXT_PUBLIC_TURNSTILE_SITE_KEY:?set NEXT_PUBLIC_TURNSTILE_SITE_KEY}
     container_name: tathyx-web
     ports:
       - "3000:3000"
+    environment:
+      - AUTH_SECRET=${AUTH_SECRET:?set AUTH_SECRET (same value for api and web)}
+      - NEXTAUTH_URL=${NEXTAUTH_URL:-http://localhost:3000}
+      - DATABASE_URL=${DATABASE_URL:-file:./prod.db}
+      - TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:?set TURNSTILE_SECRET_KEY (Cloudflare Turnstile)}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+      - TWILIO_FROM_NUMBER=${TWILIO_FROM_NUMBER:-}
     depends_on:
       - api
     restart: unless-stopped

@@ -1,5 +1,13 @@
 import crypto from "crypto";
 import { prisma } from "./prisma";
+import { getAuthSecret } from "./auth-token";
+
+export type OtpPurpose = "signup_phone" | "login_2fa" | "password_reset";
+
+const MAX_OTP_ATTEMPTS = 5;
+const OTP_TTL_MS = 5 * 60 * 1000;
+const MAX_SENDS_PER_WINDOW = 3;
+const SEND_WINDOW_MS = 15 * 60 * 1000;
 
 export interface SendOtpResult {
   success: boolean;
@@ -13,36 +21,59 @@ export interface VerifyOtpResult {
   message: string;
 }
 
+export function normalizePhone(target: string): string {
+  return target.trim().replace(/[\s-]/g, "");
+}
+
+/** E.164: "+" then 8-15 digits, first digit non-zero. */
+export function isValidPhone(target: string): boolean {
+  return /^\+[1-9]\d{7,14}$/.test(normalizePhone(target));
+}
+
 /**
- * Computes a deterministic SHA-256 hash of the OTP for storage.
- * Plaintext OTPs are NEVER persisted to the database.
+ * Keyed hash of the OTP for storage. Plaintext OTPs are NEVER persisted.
+ * A plain SHA-256 of a 6-digit code is reversible by trying all 900,000
+ * values, so a leaked database would expose every live code; an HMAC
+ * keyed with the server secret (and bound to target + purpose) is not.
  */
-export function hashOtp(code: string): string {
-  return crypto.createHash("sha256").update(code).digest("hex");
+export function hashOtp(code: string, target: string, purpose: OtpPurpose): string {
+  return crypto.createHmac("sha256", getAuthSecret()).update(`otp:${purpose}:${target}:${code}`).digest("hex");
+}
+
+/**
+ * Dev OTP mode (code shown on screen and in the server log instead of an
+ * SMS) must be an explicit opt-in and is impossible in production.
+ * Previously it switched on automatically whenever Twilio keys were
+ * missing -- so a deploy without Twilio returned every OTP to whoever
+ * asked for it, letting anyone verify any phone number.
+ */
+export function isOtpDevMode(): boolean {
+  return process.env.OTP_DEV_MODE === "true" && process.env.NODE_ENV !== "production";
 }
 
 /**
  * Generates and dispatches a 6-digit numeric OTP with 5-minute expiry.
  * Enforces a maximum of 3 requests per target per 15 minutes.
  */
-export async function sendOtp(
-  target: string,
-  purpose: "signup_phone" | "login_2fa" | "password_reset" = "signup_phone"
-): Promise<SendOtpResult> {
-  const normalizedTarget = target.trim().replace(/[\s-]/g, "");
+export async function sendOtp(target: string, purpose: OtpPurpose = "signup_phone"): Promise<SendOtpResult> {
+  const normalizedTarget = normalizePhone(target);
   const now = new Date();
-  const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
 
-  // Rate-limiting check: max 3 OTPs per 15 min
+  const devMode = isOtpDevMode();
+  if (!devMode && (!process.env.TWILIO_ACCOUNT_SID || !process.env.TWILIO_AUTH_TOKEN)) {
+    console.error("[otp] SMS provider is not configured and OTP_DEV_MODE is off -- cannot send code");
+    return { success: false, message: "Verification service is temporarily unavailable." };
+  }
+
+  // Rate-limiting check: max 3 OTPs per 15 min per target
   const recentCount = await prisma.otpCode.count({
     where: {
       target: normalizedTarget,
       purpose,
-      createdAt: { gte: fifteenMinutesAgo },
+      createdAt: { gte: new Date(now.getTime() - SEND_WINDOW_MS) },
     },
   });
-
-  if (recentCount >= 3) {
+  if (recentCount >= MAX_SENDS_PER_WINDOW) {
     return {
       success: false,
       message: "Too many OTP requests. Please wait 15 minutes before trying again.",
@@ -50,48 +81,23 @@ export async function sendOtp(
     };
   }
 
-  // Generate cryptographically secure 6-digit OTP
-  const rawCode = crypto.randomInt(100000, 999999).toString();
-  const codeHash = hashOtp(rawCode);
-  const expiresAt = new Date(now.getTime() + 5 * 60 * 1000); // 5 minutes TTL
+  // Cryptographically secure 6-digit OTP (randomInt's upper bound is exclusive)
+  const rawCode = crypto.randomInt(100000, 1000000).toString();
+  const codeHash = hashOtp(rawCode, normalizedTarget, purpose);
+  const expiresAt = new Date(now.getTime() + OTP_TTL_MS);
 
   // Invalidate any prior unconsumed OTPs for this target & purpose
   await prisma.otpCode.updateMany({
-    where: {
-      target: normalizedTarget,
-      purpose,
-      consumedAt: null,
-    },
-    data: {
-      consumedAt: now, // mark as invalidated
-    },
+    where: { target: normalizedTarget, purpose, consumedAt: null },
+    data: { consumedAt: now },
   });
 
-  // Store hashed OTP
   await prisma.otpCode.create({
-    data: {
-      target: normalizedTarget,
-      codeHash,
-      purpose,
-      attempts: 0,
-      expiresAt,
-    },
+    data: { target: normalizedTarget, codeHash, purpose, attempts: 0, expiresAt },
   });
 
-  const isDevMode =
-    process.env.OTP_DEV_MODE === "true" ||
-    !process.env.TWILIO_ACCOUNT_SID ||
-    !process.env.TWILIO_AUTH_TOKEN;
-
-  if (isDevMode) {
-    console.log("\n============================================================");
-    console.log(`🔑 [TATHYX AI DEV OTP SIMULATOR]`);
-    console.log(`📱 Target:  ${normalizedTarget}`);
-    console.log(`🎯 Purpose: ${purpose}`);
-    console.log(`⚡ CODE:    >>> ${rawCode} <<<`);
-    console.log(`⏳ Expires: 5 minutes (${expiresAt.toLocaleTimeString()})`);
-    console.log("============================================================\n");
-
+  if (devMode) {
+    console.log(`[TATHYX DEV OTP] target=${normalizedTarget} purpose=${purpose} code=${rawCode} (expires in 5 min)`);
     return {
       success: true,
       message: "OTP sent successfully (Simulated in Dev Mode)",
@@ -100,57 +106,38 @@ export async function sendOtp(
     };
   }
 
-  // Real Twilio delivery if credentials are provided
   try {
-    const twilio = require("twilio")(
-      process.env.TWILIO_ACCOUNT_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
-
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const twilio = require("twilio")(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN);
     await twilio.messages.create({
       body: `Your Tathyx AI verification code is: ${rawCode}. Valid for 5 minutes. Do not share this with anyone.`,
       to: normalizedTarget,
       from: process.env.TWILIO_FROM_NUMBER || "TATHYX",
     });
-
-    return {
-      success: true,
-      message: "Verification code sent via SMS",
-      cooldownSeconds: 45,
-    };
-  } catch (error: any) {
+    return { success: true, message: "Verification code sent via SMS", cooldownSeconds: 45 };
+  } catch (error) {
     console.error("Failed to deliver Twilio SMS:", error);
-    return {
-      success: false,
-      message: "Failed to dispatch SMS. Please verify your phone number.",
-    };
+    return { success: false, message: "Failed to dispatch SMS. Please verify your phone number." };
   }
 }
 
 /**
- * Verifies user-supplied OTP against the stored SHA-256 hash.
- * Enforces a strict maximum of 5 attempts.
+ * Verifies a user-supplied OTP against the stored keyed hash.
+ * Enforces a strict maximum of 5 attempts per code.
  */
 export async function verifyOtp(
   target: string,
   code: string,
-  purpose: "signup_phone" | "login_2fa" | "password_reset" = "signup_phone"
+  purpose: OtpPurpose = "signup_phone"
 ): Promise<VerifyOtpResult> {
-  const normalizedTarget = target.trim().replace(/[\s-]/g, "");
+  const normalizedTarget = normalizePhone(target);
   const normalizedCode = code.trim();
   const now = new Date();
 
-  // Find latest active OTP code
   const record = await prisma.otpCode.findFirst({
-    where: {
-      target: normalizedTarget,
-      purpose,
-      consumedAt: null,
-      expiresAt: { gt: now },
-    },
+    where: { target: normalizedTarget, purpose, consumedAt: null, expiresAt: { gt: now } },
     orderBy: { createdAt: "desc" },
   });
-
   if (!record) {
     return {
       success: false,
@@ -158,44 +145,42 @@ export async function verifyOtp(
     };
   }
 
-  if (record.attempts >= 5) {
-    // Invalidate record due to max attempts exceeded
-    await prisma.otpCode.update({
-      where: { id: record.id },
-      data: { consumedAt: now },
-    });
-    return {
-      success: false,
-      message: "Maximum verification attempts exceeded. Please request a new code.",
-    };
+  // Reserve an attempt atomically *before* comparing. The conditional
+  // update (attempts < 5) means parallel guesses cannot all read the same
+  // counter and blow past the limit -- the old read-then-increment let a
+  // burst of concurrent requests make unlimited guesses at a 6-digit code.
+  const reserved = await prisma.otpCode.updateMany({
+    where: { id: record.id, consumedAt: null, attempts: { lt: MAX_OTP_ATTEMPTS } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (reserved.count === 0) {
+    await prisma.otpCode.updateMany({ where: { id: record.id, consumedAt: null }, data: { consumedAt: now } });
+    return { success: false, message: "Maximum verification attempts exceeded. Please request a new code." };
   }
 
-  const candidateHash = hashOtp(normalizedCode);
-  const isMatch = crypto.timingSafeEqual(
-    Buffer.from(candidateHash, "utf-8"),
-    Buffer.from(record.codeHash, "utf-8")
-  );
+  if (!/^\d{6}$/.test(normalizedCode)) {
+    return { success: false, message: "Invalid code." };
+  }
 
+  const candidateHash = hashOtp(normalizedCode, normalizedTarget, purpose);
+  const isMatch = crypto.timingSafeEqual(Buffer.from(candidateHash, "utf-8"), Buffer.from(record.codeHash, "utf-8"));
   if (!isMatch) {
-    await prisma.otpCode.update({
-      where: { id: record.id },
-      data: { attempts: { increment: 1 } },
-    });
-    const remaining = 4 - record.attempts;
+    const remaining = MAX_OTP_ATTEMPTS - (record.attempts + 1);
     return {
       success: false,
       message: `Invalid code. ${remaining > 0 ? `${remaining} attempts remaining.` : "Code locked."}`,
     };
   }
 
-  // Successful verification -> consume code
-  await prisma.otpCode.update({
-    where: { id: record.id },
+  // Consume exactly once: a concurrent second success on the same code
+  // matches zero rows and is rejected.
+  const consumed = await prisma.otpCode.updateMany({
+    where: { id: record.id, consumedAt: null },
     data: { consumedAt: now },
   });
+  if (consumed.count === 0) {
+    return { success: false, message: "Verification code has already been used." };
+  }
 
-  return {
-    success: true,
-    message: "Phone number verified successfully.",
-  };
+  return { success: true, message: "Phone number verified successfully." };
 }

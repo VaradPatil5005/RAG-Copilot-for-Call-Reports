@@ -67,12 +67,13 @@ def run_retrieval_eval(
     top_k: int = 10,
     tenant_id: str = "tenant-a",
     queries: list[dict] | None = None,
+    max_workers: int = 10,
 ) -> EvalSummary:
     queries = queries if queries is not None else GOLD_QUERIES
     results: list[QueryResult] = []
     by_category: dict[str, list[QueryResult]] = {}
 
-    for q in queries:
+    def _eval_one(q: dict) -> QueryResult:
         start = time.monotonic()
         rw = query_rewrite.rewrite_query(q["question"])
         filters = search_index.SearchFilters(tenant_id=tenant_id)
@@ -82,7 +83,7 @@ def run_retrieval_eval(
         hit, rr, missing = _hit_and_rank(retrieved, q.get("gold_customers", []))
         retrieved_customers = sorted({c.get("customer_name") for c in retrieved if c.get("customer_name")})
 
-        qr = QueryResult(
+        return QueryResult(
             query_id=q["query_id"],
             question=q["question"],
             intent_category=q["intent_category"],
@@ -93,8 +94,17 @@ def run_retrieval_eval(
             missing_customers=missing,
             latency_ms=latency_ms,
         )
-        results.append(qr)
-        by_category.setdefault(q["intent_category"], []).append(qr)
+
+    if len(queries) <= 2:
+        results = [_eval_one(q) for q in queries]
+    else:
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=min(max_workers, len(queries))) as pool:
+            results = list(pool.map(_eval_one, queries))
+
+    for qr in results:
+        by_category.setdefault(qr.intent_category, []).append(qr)
 
     n = len(results)
     hit_rate = sum(1 for r in results if r.hit) / n if n else 0.0

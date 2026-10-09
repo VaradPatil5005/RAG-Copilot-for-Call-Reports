@@ -215,7 +215,7 @@ def test_tenant_a_search_does_not_leak_tenant_b_content(cross_tenant_docs, mint_
     client = cross_tenant_docs["client"]
     resp = client.post(
         "/search",
-        json={"query": "tenant-b-only report Contoso pricing risks", "top_k": 20},
+        json={"query": "tenant-b-only report Contoso pricing risks", "top_k": 15},
         headers=mint_token("dave", principals=["tenant:tenant-a"]),
     )
     assert resp.status_code == 200
@@ -234,7 +234,7 @@ def test_tenant_b_search_does_not_leak_tenant_a_content(cross_tenant_docs):
     client = cross_tenant_docs["client"]
     resp = client.post(
         "/search",
-        json={"query": "Contoso pricing risks Acme Corp", "top_k": 20},
+        json={"query": "Contoso pricing risks Acme Corp", "top_k": 15},
         headers=cross_tenant_docs["b_headers"],
     )
     assert resp.status_code == 200

@@ -421,7 +421,7 @@ export default function LearningPage() {
             {/* Top Overview Bar */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="font-display text-[16px] font-semibold text-text">
+                <h2 className="font-display text-[16px] font-medium text-text">
                   Multi-Tier Persistent Intelligence Memory
                 </h2>
                 <p className="text-[12.5px] text-text-muted mt-0.5">
@@ -663,7 +663,7 @@ export default function LearningPage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="font-display text-[16px] font-semibold text-text">
+                <h2 className="font-display text-[16px] font-medium text-text">
                   Procedural Financial Skills Engine
                 </h2>
                 <p className="text-[12.5px] text-text-muted mt-0.5">
@@ -792,7 +792,7 @@ export default function LearningPage() {
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="font-display text-[15px] font-bold text-text">{skill.name}</span>
+                          <span className="font-display text-[15px] font-medium text-text">{skill.name}</span>
                           <span className="rounded bg-primary-dim/30 text-primary border border-primary-dim/50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide">
                             {skill.category.replace("_", " ")}
                           </span>
@@ -887,7 +887,7 @@ export default function LearningPage() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h2 className="font-display text-[16px] font-semibold text-text">
+                <h2 className="font-display text-[16px] font-medium text-text">
                   Autonomous Knowledge Lifecycle Curator
                 </h2>
                 <p className="text-[12.5px] text-text-muted mt-0.5">
@@ -990,7 +990,7 @@ export default function LearningPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-text">
+                <h2 className="font-display text-[15px] font-medium text-text">
                   Self-Discovered Domain Lexicon
                 </h2>
                 <p className="text-[12px] text-text-muted">
@@ -1088,7 +1088,7 @@ export default function LearningPage() {
             {/* Adaptive Utility */}
             <div className="space-y-4">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-text">
+                <h2 className="font-display text-[15px] font-medium text-text">
                   Adaptive Chunk Utility Multipliers
                 </h2>
                 <p className="text-[12px] text-text-muted">
@@ -1154,7 +1154,7 @@ export default function LearningPage() {
             {/* Golden Exemplars */}
             <div className="space-y-4">
               <div>
-                <h2 className="font-display text-[15px] font-semibold text-text">
+                <h2 className="font-display text-[15px] font-medium text-text">
                   Dynamic Few-Shot Exemplar Memory
                 </h2>
                 <p className="text-[12px] text-text-muted">

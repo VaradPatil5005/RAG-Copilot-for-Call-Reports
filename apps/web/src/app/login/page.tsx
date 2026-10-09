@@ -1,11 +1,22 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
-import { Radar, Lock, Mail, ArrowRight, AlertCircle, RotateCw } from "lucide-react";
+import { Lock, Mail, ArrowRight, AlertCircle, RotateCw, Sparkles } from "lucide-react";
 import { useAuth } from "@/components/auth/auth-context";
+import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { DEMO_LOGINS_ENABLED, signInErrorMessage } from "@/lib/auth-errors";
+import { clearAuthToken } from "@/lib/auth";
+
+/** Only same-origin relative paths -- never redirect to an attacker URL. */
+import { AuthShell } from "@/components/auth/auth-shell";
+
+function safeCallbackUrl(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/";
+  return raw;
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,9 +26,53 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
+
+  const finishSignIn = async (res: Awaited<ReturnType<typeof signIn>> | undefined) => {
+    // A CAPTCHA token is single-use: always get a fresh one for the next try.
+    captchaRef.current?.reset();
+    const message = signInErrorMessage(res);
+    if (message) {
+      setError(message);
+      return;
+    }
+    clearAuthToken();
+    await refreshUser();
+    const params = new URLSearchParams(window.location.search);
+    router.push(safeCallbackUrl(params.get("callbackUrl")));
+    router.refresh();
+  };
+
+  const handleQuickLogin = async (quickEmail: string, quickPass: string) => {
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      const res = await signIn("credentials", {
+        redirect: false,
+        email: quickEmail,
+        password: quickPass,
+        rememberMe: "true",
+        captchaToken,
+      });
+      await finishSignIn(res);
+    } catch (err: any) {
+      setError(err?.message || "Quick login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
@@ -27,15 +82,9 @@ export default function LoginPage() {
         email,
         password,
         rememberMe: rememberMe ? "true" : "false",
+        captchaToken,
       });
-
-      if (res?.error) {
-        setError(res.error);
-      } else {
-        await refreshUser();
-        router.push("/");
-        router.refresh();
-      }
+      await finishSignIn(res);
     } catch (err: any) {
       setError(err?.message || "Failed to sign in");
     } finally {
@@ -44,22 +93,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-surface-dark relative overflow-hidden">
-      {/* Background glow accents */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full bg-evidence/10 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-10 right-10 w-72 h-72 rounded-full bg-primary/10 blur-[100px] pointer-events-none" />
-
-      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-surface/90 backdrop-blur-xl p-8 shadow-2xl relative z-10">
+    <AuthShell>
+      <div>
         {/* Brand Header */}
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="h-12 w-12 rounded-2xl bg-elevated-2 border border-white/10 flex items-center justify-center shadow-inner mb-3">
-            <Radar className="h-6 w-6 text-evidence" strokeWidth={2} />
-          </div>
-          <h1 className="font-display text-xl font-bold tracking-tight text-text">
-            Tathyx AI
+        <div className="mb-8">
+          <h1 className="font-display text-[1.9rem] font-medium leading-tight text-text">
+            Welcome back
           </h1>
-          <p className="text-[12px] text-text-muted mt-1">
-            Enterprise Decision Intelligence Copilot for Call Reports
+          <p className="text-[13px] text-text-muted mt-2">
+            Sign in to your decision intelligence workspace.
           </p>
         </div>
 
@@ -70,35 +112,45 @@ export default function LoginPage() {
           </div>
         )}
 
-        {/* 1-Click Google Login */}
-        <button
-          onClick={() => signIn("google")}
-          className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-elevated/70 hover:bg-elevated hover:border-white/20 py-2.5 px-4 text-[13px] font-medium text-text transition-all shadow-sm mb-4 cursor-pointer"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24">
-            <path
-              fill="#4285F4"
-              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-            />
-            <path
-              fill="#34A853"
-              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-            />
-            <path
-              fill="#FBBC05"
-              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-            />
-            <path
-              fill="#EA4335"
-              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-            />
-          </svg>
-          <span>Continue with Google</span>
-        </button>
+        {/* Quick 1-Click Test Accounts for Local Dev (hidden unless explicitly enabled) */}
+        {DEMO_LOGINS_ENABLED && (
+        <div className="mb-4 rounded-xl border border-primary/25 bg-primary/[0.04] p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+              <Sparkles className="h-3 w-3" />
+              Instant Local Dev Logins (1-Click)
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">Dev only</span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {[
+              { label: "Credit Analyst", email: "analyst@tathyx.ai", pass: "TathyxAnalyst2026!" },
+              { label: "Client Portfolio", email: "customer@tathyx.ai", pass: "TathyxCustomer2026!" },
+              { label: "Risk Admin", email: "admin@tathyx.ai", pass: "TathyxAdmin2026!" },
+              { label: "Super Admin", email: "superadmin@tathyx.ai", pass: "TathyxSuperAdmin2026!" },
+            ].map((item) => (
+              <button
+                key={item.email}
+                type="button"
+                disabled={isLoading}
+                onClick={() => handleQuickLogin(item.email, item.pass)}
+                className="flex flex-col text-left px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-evidence/50 transition-colors cursor-pointer disabled:opacity-50"
+              >
+                <span className="text-[12px] font-medium text-white leading-tight">
+                  {item.label}
+                </span>
+                <span className="text-[10px] text-zinc-400 font-mono truncate">
+                  {item.email}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        )}
 
         <div className="relative flex items-center justify-center my-4">
           <div className="w-full border-t border-border-subtle" />
-          <span className="absolute bg-surface px-3 text-[11px] font-mono text-text-faint uppercase">
+          <span className="absolute bg-bg px-3 text-[11px] font-mono text-text-faint uppercase">
             or work email
           </span>
         </div>
@@ -161,10 +213,12 @@ export default function LoginPage() {
             </label>
           </div>
 
+          <Turnstile ref={captchaRef} onToken={setCaptchaToken} action="login" />
+
           <button
             type="submit"
-            disabled={isLoading}
-            className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-hover text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+            disabled={isLoading || !captchaToken}
+            className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
           >
             {isLoading ? (
               <RotateCw className="h-4 w-4 animate-spin" />
@@ -184,6 +238,6 @@ export default function LoginPage() {
           </Link>
         </div>
       </div>
-    </div>
+    </AuthShell>
   );
 }

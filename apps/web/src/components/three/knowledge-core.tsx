@@ -13,12 +13,12 @@ export type CoreState =
   | "error";
 
 const STATE_COLOR: Record<CoreState, string> = {
-  idle: "#5B6472",
-  searching: "#F0A857",
-  retrieving: "#F0A857",
-  reasoning: "#F0A857",
-  generating: "#4FD1C5",
-  error: "#F0685C",
+  idle: "#7A6F63",
+  searching: "#EE6A3C",
+  retrieving: "#EE6A3C",
+  reasoning: "#EE6A3C",
+  generating: "#D5360C",
+  error: "#EF6B57",
 };
 
 const STATE_SPEED: Record<CoreState, number> = {
@@ -63,7 +63,7 @@ function Rings({ state }: { state: CoreState }) {
       </mesh>
       <mesh ref={ring2} rotation={[0, Math.PI / 4, Math.PI / 6]}>
         <torusGeometry args={[1.3, 0.006, 8, 96]} />
-        <meshBasicMaterial color={"#4FD1C5"} transparent opacity={0.35} />
+        <meshBasicMaterial color={"#D5360C"} transparent opacity={0.35} />
       </mesh>
       <mesh ref={ring3} rotation={[Math.PI / 5, Math.PI / 3, 0]}>
         <torusGeometry args={[1.55, 0.005, 8, 96]} />

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAIInsights, type AIInsightItem } from "@/lib/api";
+import { isAuthRequiredError } from "@/lib/auth";
 
 type CategoryFilter = "all" | "risk" | "action" | "market";
 
@@ -29,7 +30,7 @@ export function AIInsightsPanel() {
       const data = await getAIInsights();
       setInsights(data.insights || []);
     } catch (err) {
-      console.error("Failed to load AI insights:", err);
+      if (!isAuthRequiredError(err)) console.error("Failed to load AI insights:", err);
     } finally {
       setLoading(false);
     }
@@ -52,18 +53,18 @@ export function AIInsightsPanel() {
   const marketCount = insights.filter((i) => i.type === "market").length;
 
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#0A0E18]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all h-[460px]">
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-white/[0.06] bg-[#101010]/80 backdrop-blur-2xl p-6 shadow-[0_20px_50px_rgba(0,0,0,0.6)] hover:border-white/10 transition-all h-[460px]">
       {/* Top Specular Laser Line */}
       <div className="absolute top-0 inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
 
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary shadow-[0_0_12px_rgba(240,168,87,0.2)]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10 border border-primary/25 text-primary">
             <Sparkles className="h-4 w-4" strokeWidth={1.75} />
           </div>
           <div>
-            <p className="font-display text-sm font-semibold text-text">AI Insights</p>
+            <p className="font-display text-sm font-medium text-text">AI Insights</p>
             <p className="font-mono text-[10px] text-text-faint uppercase tracking-wider">
               Cross-Report Synthesis
             </p>
@@ -167,7 +168,7 @@ export function AIInsightsPanel() {
                     </span>
                   )}
                   <div>
-                    <h4 className="font-display text-[13px] font-semibold text-text leading-tight group-hover:text-white transition-colors">
+                    <h4 className="font-display text-[13px] font-medium text-text leading-tight group-hover:text-white transition-colors">
                       {item.title}
                     </h4>
                     <span className="font-mono text-[9px] uppercase tracking-wider text-text-faint">

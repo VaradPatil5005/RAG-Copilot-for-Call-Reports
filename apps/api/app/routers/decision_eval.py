@@ -28,8 +28,10 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+
+from app.services import auth
 
 from app import db
 from app.evaluation import policy_eval
@@ -38,7 +40,7 @@ from app.evaluation.policy_gold_queries import POLICY_GOLD_QUERIES
 router = APIRouter(prefix="/decision-eval", tags=["decision-eval"])
 
 
-@router.get("/policy-gold-set")
+@router.get("/policy-gold-set", dependencies=[Depends(auth.require_identity)])
 def policy_gold_set() -> dict:
     return {"n_cases": len(POLICY_GOLD_QUERIES), "cases": POLICY_GOLD_QUERIES}
 
@@ -48,7 +50,7 @@ class PolicyBlockRunRequest(BaseModel):
     top_k: int = 10
 
 
-@router.post("/run-policy-block")
+@router.post("/run-policy-block", dependencies=[Depends(auth.require_super_admin)])
 def run_policy_block(req: PolicyBlockRunRequest) -> dict:
     """Runs the net-new policy-block-accuracy metric over
     `POLICY_GOLD_QUERIES` and persists it (mirrors `/evaluation/run-full`'s
@@ -66,7 +68,7 @@ def run_policy_block(req: PolicyBlockRunRequest) -> dict:
     return report
 
 
-@router.get("/latest-policy-block")
+@router.get("/latest-policy-block", dependencies=[Depends(auth.require_identity)])
 def latest_policy_block() -> dict:
     row = db.row_to_dict(
         db.get_connection()
@@ -84,7 +86,7 @@ def latest_policy_block() -> dict:
     return report
 
 
-@router.get("/summary")
+@router.get("/summary", dependencies=[Depends(auth.require_identity)])
 def summary() -> dict:
     """Read-only aggregation for the new dashboard tab -- reads two
     already-persisted reports, computes nothing itself, and never

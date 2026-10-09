@@ -1,34 +1,61 @@
 @import "tailwindcss";
 
 /* ============================================================
-   ENTERPRISE RAG COPILOT — DESIGN TOKENS
-   Signal-extraction visual identity:
-   amber = AI reasoning/retrieval-in-progress state
-   teal  = grounded, verified evidence state
+   TATHYX — EDITORIAL DESIGN SYSTEM
+   Palette (from the brand reference):
+     Burnt Orange  #D5360C  brand, active states, key graphics
+     Warm Ivory    #E6D5BD  primary text, primary buttons
+     Soft Black    #101010  canvas
+   Supporting tones are derived from those three so every surface
+   stays warm. Glow is used sparingly and always means something:
+     ember (burnt orange)  -> focus / the one primary action / live AI work
+     brass                 -> grounded, verified evidence (citations)
+   Contrast (WCAG): ivory on canvas 13.2:1, muted 6.9:1, faint 4.9:1,
+   ember text 6.1:1. #D5360C is 3.95:1 on canvas, so it is used for
+   fills, icons and rules (3:1 rule), never small text; small accent
+   text uses --color-ember. Button fills use #CC330B (visually the
+   same hue) so the paper-white label reaches 4.78:1.
    ============================================================ */
 
 :root {
-  --color-bg:            #06080F;
-  --color-surface:       #0D121D;
-  --color-elevated:      #141B2A;
-  --color-elevated-2:    #1C263A;
-  --color-border:        #233047;
-  --color-border-subtle: #172133;
+  /* canvas & surfaces */
+  --color-bg:            #101010;
+  --color-surface:       #161514;
+  --color-elevated:      #1D1A18;
+  --color-elevated-2:    #25211E;
+  --color-border:        #34302B;
+  --color-border-subtle: #24211E;
 
-  --color-text:          #F1F5F9;
-  --color-text-muted:    #94A3B8;
-  --color-text-faint:    #64748B;
+  /* type */
+  --color-text:          #E6D5BD;
+  --color-text-muted:    #A99A86;
+  --color-text-faint:    #8E8273;
+  --color-paper:         #FFF4E6;
 
-  --color-primary:       #F0A857; /* solar amber / AI cognition */
-  --color-primary-dim:   #6B5432;
-  --color-evidence:      #4FD1C5; /* quantum teal / verified evidence */
-  --color-evidence-dim:  #295C57;
+  /* brand */
+  --color-brand:         #D5360C;
+  --color-brand-fill:    #CC330B;
+  --color-brand-press:   #B82E0A;
+  --color-ember:         #EE6A3C;
 
-  --color-success:       #6EE7A8;
-  --color-warning:       #F0A857;
-  --color-error:         #F0685C;
-  --color-purple:        #8B5CF6;
-  --color-cyan:          #00F5D4;
+  /* semantic (names kept for existing components) */
+  --color-primary:       #EE6A3C; /* accent text & icons on dark */
+  --color-primary-hover: #F2804F;
+  --color-primary-dim:   #5A2410;
+  --color-evidence:      #C9A46A; /* brass: verified evidence */
+  --color-evidence-dim:  #4A3D27;
+
+  --color-success:       #9DB38A;
+  --color-warning:       #D9A441;
+  --color-error:         #EF6B57;
+  --color-purple:        #A7798A;
+  --color-cyan:          #C9A46A;
+
+  /* elevation & motion */
+  --shadow-1: 0 1px 0 0 rgba(230, 213, 189, 0.04) inset, 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-2: 0 1px 0 0 rgba(230, 213, 189, 0.05) inset, 0 12px 32px -12px rgba(0, 0, 0, 0.7);
+  --glow-ember: 0 0 0 1px rgba(213, 54, 12, 0.45), 0 0 24px -4px rgba(213, 54, 12, 0.35);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @theme inline {
@@ -42,8 +69,15 @@
   --color-text: var(--color-text);
   --color-text-muted: var(--color-text-muted);
   --color-text-faint: var(--color-text-faint);
+  --color-paper: var(--color-paper);
+
+  --color-brand: var(--color-brand);
+  --color-brand-fill: var(--color-brand-fill);
+  --color-brand-press: var(--color-brand-press);
+  --color-ember: var(--color-ember);
 
   --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
   --color-primary-dim: var(--color-primary-dim);
   --color-evidence: var(--color-evidence);
   --color-evidence-dim: var(--color-evidence-dim);
@@ -51,11 +85,14 @@
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
+  --color-danger: var(--color-error);
+  --color-surface-dark: var(--color-bg);
 
-  /* Space Grotesk / Inter / JetBrains Mono */
-  --font-display: "Space Grotesk", "Avenir Next", ui-sans-serif, system-ui, sans-serif;
-  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Fraunces (editorial display) / Geist (UI) / Geist Mono (data) --
+     self-hosted via next/font in app/layout.tsx */
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo, monospace;
 }
 
 * {
@@ -70,80 +107,148 @@ body {
   background: var(--color-bg);
   color: var(--color-text);
   font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* Cosmic space depth with glowing auras */
+::selection {
+  background: rgba(213, 54, 12, 0.85);
+  color: var(--color-paper);
+}
+
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 50;
+  letter-spacing: -0.015em;
+}
+
+/* ------------------------------------------------------------
+   Canvas: flat soft black, a single warm light source from the
+   top, and a faint film grain for a printed, tactile finish.
+   (Replaces the previous neon "cosmic aura" background.)
+   ------------------------------------------------------------ */
 .app-backdrop {
-  background-color: #06080F;
+  background-color: var(--color-bg);
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(139, 92, 246, 0.12), transparent),
-    radial-gradient(ellipse 70% 45% at 95% 15%, rgba(79, 209, 197, 0.10), transparent),
-    radial-gradient(ellipse 60% 40% at 5% 45%, rgba(240, 168, 87, 0.08), transparent),
-    radial-gradient(circle at 50% 85%, rgba(59, 130, 246, 0.06), transparent);
+    radial-gradient(ellipse 70% 40% at 50% -12%, rgba(213, 54, 12, 0.07), transparent 70%),
+    radial-gradient(ellipse 50% 30% at 100% 0%, rgba(230, 213, 189, 0.035), transparent 70%);
   background-attachment: fixed;
 }
 
-/* Subtle zero-gravity perspective grid */
+/* Kept as a class name for existing markup; now a fine paper grain, not a grid. */
 .cyber-grid {
-  background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-  background-size: 48px 48px;
+  position: relative;
+}
+.cyber-grid::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
 }
 
-/* Specular Antigravity glassmorphism */
+/* Surfaces: solid, warm, hairline-bordered. No glassmorphism blur. */
 .glass {
-  background: rgba(13, 18, 29, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06);
+  background: rgba(22, 21, 20, 0.92);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-1);
 }
 
 .antigravity-card {
-  background: rgba(13, 18, 29, 0.7);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.06), 0 4px 20px -2px rgba(0, 0, 0, 0.4);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-subtle);
+  box-shadow: var(--shadow-1);
+  transition: border-color 0.3s var(--ease-out), box-shadow 0.3s var(--ease-out), transform 0.3s var(--ease-out);
 }
 
 .antigravity-card:hover {
-  border-color: rgba(79, 209, 197, 0.25);
-  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1), 0 8px 30px -4px rgba(0, 0, 0, 0.6), 0 0 20px rgba(79, 209, 197, 0.1);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-2);
   transform: translateY(-1px);
 }
 
-/* Gradient text utilities */
+/* Editorial type treatments (old gradient-text class names kept) */
 .antigravity-text-gradient {
-  background: linear-gradient(135deg, #FFFFFF 0%, #E2E8F0 50%, #94A3B8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--color-text);
+  -webkit-text-fill-color: currentColor;
+  background: none;
 }
 
 .antigravity-text-cyan {
-  background: linear-gradient(135deg, #FFFFFF 0%, #4FD1C5 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--color-evidence);
+  -webkit-text-fill-color: currentColor;
+  background: none;
 }
 
 .antigravity-text-amber {
-  background: linear-gradient(135deg, #FFFFFF 0%, #F0A857 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--color-ember);
+  -webkit-text-fill-color: currentColor;
+  background: none;
 }
 
-.hud-chip {
+/* Small tracked uppercase label -- the "LUMEN" nav style from the reference */
+.hud-chip,
+.eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
-  letter-spacing: 0.08em;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
+}
+.hud-chip {
   border-radius: 9999px;
-  padding: 0.2rem 0.6rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(20, 27, 42, 0.6);
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--color-border);
+  background: var(--color-elevated);
+  color: var(--color-text-muted);
+}
+
+/* Wordmark: wide-tracked caps with a burnt orange full stop */
+.wordmark {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+.wordmark-dot {
+  color: var(--color-brand);
+}
+
+/* Buttons (opt-in classes for new markup) */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--color-text);
+  color: var(--color-bg);
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: background 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-paper);
+}
+.btn-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--color-brand-fill);
+  color: var(--color-paper);
+  font-weight: 600;
+  border-radius: 9999px;
+  transition: background 0.2s var(--ease-out), box-shadow 0.25s var(--ease-out);
+}
+.btn-brand:hover:not(:disabled) {
+  background: var(--color-brand-press);
+  box-shadow: var(--glow-ember);
 }
 
 ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -160,63 +265,59 @@ body {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-brand);
   outline-offset: 2px;
 }
 
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--color-brand) !important;
+  box-shadow: 0 0 0 3px rgba(213, 54, 12, 0.18);
+}
+
 /* ============================================================
-   GLOWING COPILOT CHAT INTERFACE
+   COPILOT CHAT
    ============================================================ */
 
-/* Inline numbered citation badges [1], [2] with glowing pulse */
+/* Inline numbered citations [1], [2] -- brass "footnote" markers */
 .citation-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   vertical-align: baseline;
   position: relative;
-  top: -0.25em;
-  min-width: 1.25rem;
-  height: 1.15rem;
-  padding: 0 0.35rem;
-  margin: 0 0.2rem;
-  border-radius: 9999px;
-  font-size: 0.6875rem;
-  font-weight: 700;
+  top: -0.3em;
+  min-width: 1.15rem;
+  height: 1.1rem;
+  padding: 0 0.32rem;
+  margin: 0 0.15rem;
+  border-radius: 0.3rem;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
   line-height: 1;
   letter-spacing: 0;
   color: var(--color-evidence);
-  background: rgba(79, 209, 197, 0.12);
-  border: 1px solid rgba(79, 209, 197, 0.28);
+  background: rgba(201, 164, 106, 0.1);
+  border: 1px solid rgba(201, 164, 106, 0.32);
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s var(--ease-out);
 }
 
 .citation-badge:hover {
-  color: #ffffff;
+  color: var(--color-bg);
   background: var(--color-evidence);
   border-color: var(--color-evidence);
-  transform: translateY(-1px) scale(1.08);
-  box-shadow: 0 2px 10px rgba(79, 209, 197, 0.45);
+  transform: translateY(-1px);
 }
 
 .citation-badge-active {
-  color: #ffffff !important;
+  color: var(--color-bg) !important;
   background: var(--color-evidence) !important;
   border-color: var(--color-evidence) !important;
-  transform: translateY(-1px) scale(1.15);
-  box-shadow: 0 0 14px rgba(79, 209, 197, 0.7) !important;
-  animation: citation-pulse 1.5s infinite ease-in-out;
-}
-
-@keyframes citation-pulse {
-  0%, 100% {
-    box-shadow: 0 0 8px rgba(79, 209, 197, 0.5);
-  }
-  50% {
-    box-shadow: 0 0 16px rgba(79, 209, 197, 0.85);
-  }
+  box-shadow: 0 0 0 3px rgba(201, 164, 106, 0.22) !important;
 }
 
 /* Chat turn container */
@@ -224,7 +325,7 @@ body {
   padding-bottom: 2rem;
   margin-bottom: 2rem;
   border-bottom: 1px solid var(--color-border-subtle);
-  animation: turn-fade-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: turn-fade-in 0.4s var(--ease-out) forwards;
 }
 
 .copilot-turn:last-child {
@@ -233,27 +334,21 @@ body {
 }
 
 @keyframes turn-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* Typography for AI answer */
+/* Answer body: comfortable reading measure and rhythm */
 .copilot-answer-text {
-  font-size: 0.9375rem;
-  line-height: 1.75;
+  font-size: 0.96875rem;
+  line-height: 1.8;
   color: var(--color-text);
-  letter-spacing: -0.01em;
+  letter-spacing: -0.003em;
   word-break: break-word;
   white-space: pre-line;
+  max-width: 72ch;
 }
 
-/* Answer footer with confidence, model & feedback */
 .copilot-answer-footer {
   display: flex;
   align-items: center;
@@ -262,92 +357,88 @@ body {
   padding-top: 0.5rem;
 }
 
-/* Perplexity-style suggestion chips */
 .copilot-suggestion-chip {
   display: inline-flex;
   align-items: center;
-  padding: 0.6rem 0.95rem;
-  border-radius: 0.85rem;
+  padding: 0.65rem 1rem;
+  border-radius: 0.75rem;
   font-size: 0.8125rem;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--color-text-muted);
-  background: rgba(27, 33, 44, 0.45);
+  background: var(--color-surface);
   border: 1px solid var(--color-border-subtle);
   text-align: left;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.25s var(--ease-out);
 }
 
 .copilot-suggestion-chip:hover {
   color: var(--color-text);
-  background: rgba(35, 42, 55, 0.7);
+  background: var(--color-elevated);
   border-color: var(--color-border);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .copilot-suggestion-chip:active {
-  transform: translateY(0) scale(0.98);
+  transform: translateY(0) scale(0.99);
 }
 
-/* Input container */
 .copilot-input-container {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: rgba(18, 22, 31, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  padding: 0.35rem 0.5rem 0.35rem 1rem;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35);
-  transition: all 0.2s ease-in-out;
+  border-radius: 1.1rem;
+  padding: 0.4rem 0.5rem 0.4rem 1.1rem;
+  box-shadow: var(--shadow-2);
+  transition: border-color 0.2s ease, box-shadow 0.25s ease;
 }
 
 .copilot-input-container:focus-within {
-  border-color: var(--color-primary);
-  box-shadow: 0 8px 30px -4px rgba(240, 168, 87, 0.15), 0 0 0 1px rgba(240, 168, 87, 0.25);
+  border-color: rgba(213, 54, 12, 0.7);
+  box-shadow: var(--shadow-2), 0 0 0 4px rgba(213, 54, 12, 0.12);
 }
 
-/* Input field */
 .copilot-input {
   flex: 1;
   min-width: 0;
   background: transparent;
   border: none;
   outline: none;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: var(--color-text);
   line-height: 1.5;
   padding: 0.4rem 0;
+}
+
+.copilot-input:focus {
+  box-shadow: none;
 }
 
 .copilot-input::placeholder {
   color: var(--color-text-faint);
 }
 
-/* Send button */
+/* Send: the single burnt-orange action on the page */
 .copilot-send-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 2.25rem;
   width: 2.25rem;
-  border-radius: 0.75rem;
-  background: var(--color-primary);
-  color: var(--color-bg);
+  border-radius: 9999px;
+  background: var(--color-brand-fill);
+  color: var(--color-paper);
   border: none;
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s var(--ease-out);
   flex-shrink: 0;
 }
 
 .copilot-send-btn:hover:not(:disabled) {
-  background: #f5b974;
-  transform: scale(1.05);
-  box-shadow: 0 2px 10px rgba(240, 168, 87, 0.4);
+  background: var(--color-brand-press);
+  box-shadow: var(--glow-ember);
 }
 
 .copilot-send-btn:active:not(:disabled) {
@@ -359,4 +450,274 @@ body {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+/* Generated warm remap of Tailwind's built-in palettes (see globals.css header). */
+@theme {
+  --color-white: #F3E8D6;  /* 'white' = brightest ivory, never pure #FFF */
+  --color-black: #0B0A09;  /* 'black' = deepest soft black */
+  /* zinc -> neutral-warm */
+  --color-zinc-50: #F7EFE3;
+  --color-zinc-100: #EFE4D3;
+  --color-zinc-200: #E6D5BD;
+  --color-zinc-300: #CFC0A9;
+  --color-zinc-400: #A99A86;
+  --color-zinc-500: #8E8273;
+  --color-zinc-600: #6B6157;
+  --color-zinc-700: #4A433D;
+  --color-zinc-800: #2E2A27;
+  --color-zinc-900: #1D1A18;
+  --color-zinc-950: #141312;
+  /* slate -> neutral-warm */
+  --color-slate-50: #F7EFE3;
+  --color-slate-100: #EFE4D3;
+  --color-slate-200: #E6D5BD;
+  --color-slate-300: #CFC0A9;
+  --color-slate-400: #A99A86;
+  --color-slate-500: #8E8273;
+  --color-slate-600: #6B6157;
+  --color-slate-700: #4A433D;
+  --color-slate-800: #2E2A27;
+  --color-slate-900: #1D1A18;
+  --color-slate-950: #141312;
+  /* gray -> neutral-warm */
+  --color-gray-50: #F7EFE3;
+  --color-gray-100: #EFE4D3;
+  --color-gray-200: #E6D5BD;
+  --color-gray-300: #CFC0A9;
+  --color-gray-400: #A99A86;
+  --color-gray-500: #8E8273;
+  --color-gray-600: #6B6157;
+  --color-gray-700: #4A433D;
+  --color-gray-800: #2E2A27;
+  --color-gray-900: #1D1A18;
+  --color-gray-950: #141312;
+  /* neutral -> neutral-warm */
+  --color-neutral-50: #F7EFE3;
+  --color-neutral-100: #EFE4D3;
+  --color-neutral-200: #E6D5BD;
+  --color-neutral-300: #CFC0A9;
+  --color-neutral-400: #A99A86;
+  --color-neutral-500: #8E8273;
+  --color-neutral-600: #6B6157;
+  --color-neutral-700: #4A433D;
+  --color-neutral-800: #2E2A27;
+  --color-neutral-900: #1D1A18;
+  --color-neutral-950: #141312;
+  /* stone -> neutral-warm */
+  --color-stone-50: #F7EFE3;
+  --color-stone-100: #EFE4D3;
+  --color-stone-200: #E6D5BD;
+  --color-stone-300: #CFC0A9;
+  --color-stone-400: #A99A86;
+  --color-stone-500: #8E8273;
+  --color-stone-600: #6B6157;
+  --color-stone-700: #4A433D;
+  --color-stone-800: #2E2A27;
+  --color-stone-900: #1D1A18;
+  --color-stone-950: #141312;
+  /* orange -> burnt */
+  --color-orange-50: #F7E5D8;
+  --color-orange-100: #F3D2C2;
+  --color-orange-200: #EDB09A;
+  --color-orange-300: #E58A6E;
+  --color-orange-400: #DD603D;
+  --color-orange-500: #D5360C;
+  --color-orange-600: #B12F0C;
+  --color-orange-700: #8D270C;
+  --color-orange-800: #681F0C;
+  --color-orange-900: #46180C;
+  --color-orange-950: #2E140C;
+  /* amber -> ochre */
+  --color-amber-50: #F6ECDC;
+  --color-amber-100: #F1E3CA;
+  --color-amber-200: #E8D2A9;
+  --color-amber-300: #DFBF85;
+  --color-amber-400: #D4AA5E;
+  --color-amber-500: #C99536;
+  --color-amber-600: #A77D2E;
+  --color-amber-700: #866427;
+  --color-amber-800: #624A1F;
+  --color-amber-900: #423318;
+  --color-amber-950: #2C2313;
+  /* yellow -> ochre */
+  --color-yellow-50: #F6ECDC;
+  --color-yellow-100: #F1E3CA;
+  --color-yellow-200: #E8D2A9;
+  --color-yellow-300: #DFBF85;
+  --color-yellow-400: #D4AA5E;
+  --color-yellow-500: #C99536;
+  --color-yellow-600: #A77D2E;
+  --color-yellow-700: #866427;
+  --color-yellow-800: #624A1F;
+  --color-yellow-900: #423318;
+  --color-yellow-950: #2C2313;
+  /* emerald -> sage */
+  --color-emerald-50: #F1EDE1;
+  --color-emerald-100: #E6E5D5;
+  --color-emerald-200: #D2D6C0;
+  --color-emerald-300: #BCC6A9;
+  --color-emerald-400: #A3B390;
+  --color-emerald-500: #8BA176;
+  --color-emerald-600: #748663;
+  --color-emerald-700: #5E6C50;
+  --color-emerald-800: #46503C;
+  --color-emerald-900: #31362A;
+  --color-emerald-950: #22251D;
+  /* green -> sage */
+  --color-green-50: #F1EDE1;
+  --color-green-100: #E6E5D5;
+  --color-green-200: #D2D6C0;
+  --color-green-300: #BCC6A9;
+  --color-green-400: #A3B390;
+  --color-green-500: #8BA176;
+  --color-green-600: #748663;
+  --color-green-700: #5E6C50;
+  --color-green-800: #46503C;
+  --color-green-900: #31362A;
+  --color-green-950: #22251D;
+  /* lime -> sage */
+  --color-lime-50: #F1EDE1;
+  --color-lime-100: #E6E5D5;
+  --color-lime-200: #D2D6C0;
+  --color-lime-300: #BCC6A9;
+  --color-lime-400: #A3B390;
+  --color-lime-500: #8BA176;
+  --color-lime-600: #748663;
+  --color-lime-700: #5E6C50;
+  --color-lime-800: #46503C;
+  --color-lime-900: #31362A;
+  --color-lime-950: #22251D;
+  /* teal -> brass */
+  --color-teal-50: #F5ECDE;
+  --color-teal-100: #EEE2CE;
+  --color-teal-200: #E2D1B2;
+  --color-teal-300: #D5BD93;
+  --color-teal-400: #C7A871;
+  --color-teal-500: #B8924F;
+  --color-teal-600: #997A43;
+  --color-teal-700: #7B6237;
+  --color-teal-800: #5A492A;
+  --color-teal-900: #3E321F;
+  --color-teal-950: #292217;
+  /* cyan -> brass */
+  --color-cyan-50: #F5ECDE;
+  --color-cyan-100: #EEE2CE;
+  --color-cyan-200: #E2D1B2;
+  --color-cyan-300: #D5BD93;
+  --color-cyan-400: #C7A871;
+  --color-cyan-500: #B8924F;
+  --color-cyan-600: #997A43;
+  --color-cyan-700: #7B6237;
+  --color-cyan-800: #5A492A;
+  --color-cyan-900: #3E321F;
+  --color-cyan-950: #292217;
+  /* sky -> brass */
+  --color-sky-50: #F5ECDE;
+  --color-sky-100: #EEE2CE;
+  --color-sky-200: #E2D1B2;
+  --color-sky-300: #D5BD93;
+  --color-sky-400: #C7A871;
+  --color-sky-500: #B8924F;
+  --color-sky-600: #997A43;
+  --color-sky-700: #7B6237;
+  --color-sky-800: #5A492A;
+  --color-sky-900: #3E321F;
+  --color-sky-950: #292217;
+  /* red -> ember-red */
+  --color-red-50: #F7E7DC;
+  --color-red-100: #F4D6CA;
+  --color-red-200: #EEB9AB;
+  --color-red-300: #E89887;
+  --color-red-400: #E07461;
+  --color-red-500: #D9503A;
+  --color-red-600: #B44432;
+  --color-red-700: #903829;
+  --color-red-800: #692B21;
+  --color-red-900: #472019;
+  --color-red-950: #2E1813;
+  /* rose -> ember-red */
+  --color-rose-50: #F7E7DC;
+  --color-rose-100: #F4D6CA;
+  --color-rose-200: #EEB9AB;
+  --color-rose-300: #E89887;
+  --color-rose-400: #E07461;
+  --color-rose-500: #D9503A;
+  --color-rose-600: #B44432;
+  --color-rose-700: #903829;
+  --color-rose-800: #692B21;
+  --color-rose-900: #472019;
+  --color-rose-950: #2E1813;
+  /* blue -> steel */
+  --color-blue-50: #F0ECE5;
+  --color-blue-100: #E4E3DE;
+  --color-blue-200: #CED2D2;
+  --color-blue-300: #B5BFC4;
+  --color-blue-400: #9AAAB5;
+  --color-blue-500: #7F95A6;
+  --color-blue-600: #6B7D8A;
+  --color-blue-700: #56646F;
+  --color-blue-800: #414A51;
+  --color-blue-900: #2E3337;
+  --color-blue-950: #202325;
+  /* indigo -> steel */
+  --color-indigo-50: #F0ECE5;
+  --color-indigo-100: #E4E3DE;
+  --color-indigo-200: #CED2D2;
+  --color-indigo-300: #B5BFC4;
+  --color-indigo-400: #9AAAB5;
+  --color-indigo-500: #7F95A6;
+  --color-indigo-600: #6B7D8A;
+  --color-indigo-700: #56646F;
+  --color-indigo-800: #414A51;
+  --color-indigo-900: #2E3337;
+  --color-indigo-950: #202325;
+  /* violet -> plum */
+  --color-violet-50: #F2EAE2;
+  --color-violet-100: #E9DDD8;
+  --color-violet-200: #D8C5C6;
+  --color-violet-300: #C5ABB2;
+  --color-violet-400: #B18F9C;
+  --color-violet-500: #9C7286;
+  --color-violet-600: #826070;
+  --color-violet-700: #694E5A;
+  --color-violet-800: #4E3A43;
+  --color-violet-900: #36292E;
+  --color-violet-950: #251D20;
+  /* purple -> plum */
+  --color-purple-50: #F2EAE2;
+  --color-purple-100: #E9DDD8;
+  --color-purple-200: #D8C5C6;
+  --color-purple-300: #C5ABB2;
+  --color-purple-400: #B18F9C;
+  --color-purple-500: #9C7286;
+  --color-purple-600: #826070;
+  --color-purple-700: #694E5A;
+  --color-purple-800: #4E3A43;
+  --color-purple-900: #36292E;
+  --color-purple-950: #251D20;
+  /* fuchsia -> terracotta */
+  --color-fuchsia-50: #F5EADF;
+  --color-fuchsia-100: #F0DED2;
+  --color-fuchsia-200: #E5C8BA;
+  --color-fuchsia-300: #DAB0A0;
+  --color-fuchsia-400: #CD9583;
+  --color-fuchsia-500: #C07A66;
+  --color-fuchsia-600: #A06656;
+  --color-fuchsia-700: #805346;
+  --color-fuchsia-800: #5E3E34;
+  --color-fuchsia-900: #402C25;
+  --color-fuchsia-950: #2A1E1A;
+  /* pink -> terracotta */
+  --color-pink-50: #F5EADF;
+  --color-pink-100: #F0DED2;
+  --color-pink-200: #E5C8BA;
+  --color-pink-300: #DAB0A0;
+  --color-pink-400: #CD9583;
+  --color-pink-500: #C07A66;
+  --color-pink-600: #A06656;
+  --color-pink-700: #805346;
+  --color-pink-800: #5E3E34;
+  --color-pink-900: #402C25;
+  --color-pink-950: #2A1E1A;
 }

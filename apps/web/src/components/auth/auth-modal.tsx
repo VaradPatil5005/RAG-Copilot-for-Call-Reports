@@ -1,10 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useAuth } from "./auth-context";
 import {
-  Radar,
   X,
   Lock,
   Mail,
@@ -18,9 +17,13 @@ import {
   RotateCw,
 } from "lucide-react";
 import { evaluatePasswordStrength } from "@/lib/password-rules";
+import { Turnstile, type TurnstileHandle } from "./turnstile";
+import { DEMO_LOGINS_ENABLED, signInErrorMessage } from "@/lib/auth-errors";
+import { clearAuthToken } from "@/lib/auth";
+import { BrandMark } from "@/components/ui/brand";
 
 export function AuthModal() {
-  const { isAuthModalOpen, closeAuthModal, pendingActionTitle, refreshUser } = useAuth();
+  const { isAuthModalOpen, closeAuthModal, completeAuthSuccess, pendingActionTitle, refreshUser } = useAuth();
   const [tab, setTab] = useState<"signin" | "signup">("signin");
   const [step, setStep] = useState<"form" | "otp">("form");
 
@@ -42,13 +45,68 @@ export function AuthModal() {
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // CAPTCHA token for the next server call. Tokens are single-use, so the
+  // widget is reset after every request that consumed one.
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const captchaRef = useRef<TurnstileHandle>(null);
+  const consumeCaptcha = () => {
+    const token = captchaToken;
+    captchaRef.current?.reset();
+    return token;
+  };
+
+  // Resend countdown. Previously `cooldown` was set to 45 and never
+  // decremented, so "Resend Code" stayed disabled forever.
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
   if (!isAuthModalOpen) return null;
 
   const strength = evaluatePasswordStrength(password);
 
+  // Quick 1-Click Test Login
+  const handleQuickLogin = async (quickEmail: string, quickPass: string) => {
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const res = await signIn("credentials", {
+        redirect: false,
+        email: quickEmail,
+        password: quickPass,
+        rememberMe: "true",
+        captchaToken: consumeCaptcha(),
+      });
+
+      const message = signInErrorMessage(res);
+      if (message) {
+        setError(message);
+      } else {
+        clearAuthToken();
+        await refreshUser();
+        completeAuthSuccess();
+      }
+    } catch (err: any) {
+      setError(err?.message || "Quick login failed");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Handle Email/Password Sign In
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
@@ -58,13 +116,16 @@ export function AuthModal() {
         email,
         password,
         rememberMe: rememberMe ? "true" : "false",
+        captchaToken: consumeCaptcha(),
       });
 
-      if (res?.error) {
-        setError(res.error || "Invalid email or password");
+      const message = signInErrorMessage(res);
+      if (message) {
+        setError(message);
       } else {
+        clearAuthToken();
         await refreshUser();
-        closeAuthModal();
+        completeAuthSuccess();
       }
     } catch (err: any) {
       setError(err?.message || "Failed to sign in");
@@ -84,6 +145,11 @@ export function AuthModal() {
       setIsLoading(false);
       return;
     }
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const res = await fetch("/api/auth/signup", {
@@ -95,6 +161,7 @@ export function AuthModal() {
           password,
           phone,
           orgName,
+          captchaToken: consumeCaptcha(),
         }),
       });
 
@@ -106,8 +173,9 @@ export function AuthModal() {
         if (data.devOtp) {
           setSimulatedDevOtp(data.devOtp);
         }
+        if (data.phone) setPhone(data.phone);
         setStep("otp");
-        setSuccessMsg("Account created! Please verify your mobile number.");
+        setSuccessMsg(data.message || "Account created! Please verify your mobile number.");
         setCooldown(45);
       }
     } catch (err: any) {
@@ -120,6 +188,10 @@ export function AuthModal() {
   // Handle OTP Verification
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
@@ -139,15 +211,23 @@ export function AuthModal() {
         setError(data.error || "Invalid verification code");
       } else {
         // Auto-login newly verified user
-        await signIn("credentials", {
+        const signInRes = await signIn("credentials", {
           redirect: false,
           email,
           password,
           rememberMe: "true",
+          captchaToken: consumeCaptcha(),
         });
-
+        const message = signInErrorMessage(signInRes);
+        if (message) {
+          setError(`Phone verified, but automatic sign-in failed: ${message}`);
+          setStep("form");
+          setTab("signin");
+          return;
+        }
+        clearAuthToken();
         await refreshUser();
-        closeAuthModal();
+        completeAuthSuccess();
       }
     } catch (err: any) {
       setError(err?.message || "Verification failed");
@@ -159,6 +239,10 @@ export function AuthModal() {
   // Resend OTP
   const handleResendOtp = async () => {
     if (cooldown > 0) return;
+    if (!captchaToken) {
+      setError("Please complete the security check first.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
 
@@ -166,7 +250,7 @@ export function AuthModal() {
       const res = await fetch("/api/auth/resend-otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, purpose: "signup_phone" }),
+        body: JSON.stringify({ phone, purpose: "signup_phone", captchaToken: consumeCaptcha() }),
       });
 
       const data = await res.json();
@@ -174,7 +258,7 @@ export function AuthModal() {
         setError(data.error || "Failed to resend code");
       } else {
         if (data.devOtp) setSimulatedDevOtp(data.devOtp);
-        setSuccessMsg("A new verification code has been dispatched.");
+        setSuccessMsg(data.message || "A new verification code has been dispatched.");
         setCooldown(data.cooldownSeconds || 45);
       }
     } catch {
@@ -185,9 +269,9 @@ export function AuthModal() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
       <div
-        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-surface/95 backdrop-blur-2xl p-6 shadow-[0_0_50px_rgba(0,0,0,0.8)] border-border-subtle"
+        className="relative w-full max-w-md rounded-2xl border border-white/10 bg-surface/95 backdrop-blur-2xl p-6 border-border-subtle"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -201,12 +285,10 @@ export function AuthModal() {
 
         {/* Brand Header */}
         <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-elevated-2 border border-white/10 shadow-inner">
-            <Radar className="h-5 w-5 text-evidence" strokeWidth={2} />
-          </div>
+          <BrandMark className="h-10 w-10 rounded-[10px] text-[24px]" />
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-display text-base font-bold text-text">Tathyx AI</h3>
+              <h3 className="font-display text-base font-medium text-text">Tathyx AI</h3>
               <span className="rounded border border-evidence/30 bg-evidence/10 px-1.5 py-0.2 font-mono text-[9px] text-evidence font-medium">
                 RBAC SECURED
               </span>
@@ -243,38 +325,48 @@ export function AuthModal() {
 
         {step === "form" ? (
           <>
-            {/* 1-Click Google OAuth */}
-            <button
-              onClick={() => signIn("google")}
-              className="w-full flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-elevated/70 hover:bg-elevated hover:border-white/20 py-2.5 px-4 text-[13px] font-medium text-text transition-all duration-200 shadow-sm mb-4"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>Continue with Google</span>
-            </button>
+            {/* Quick 1-Click Test Accounts for Local Dev (hidden unless explicitly enabled) */}
+            {DEMO_LOGINS_ENABLED && (
+            <div className="mb-4 rounded-xl border border-primary/25 bg-primary/[0.04] p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3" />
+                  Instant Local Dev Logins (1-Click)
+                </span>
+                <span className="text-[10px] text-zinc-500 font-mono">Dev only</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { label: "Credit Analyst", email: "analyst@tathyx.ai", pass: "TathyxAnalyst2026!" },
+                  { label: "Client Portfolio", email: "customer@tathyx.ai", pass: "TathyxCustomer2026!" },
+                  { label: "Risk Admin", email: "admin@tathyx.ai", pass: "TathyxAdmin2026!" },
+                  { label: "Super Admin", email: "superadmin@tathyx.ai", pass: "TathyxSuperAdmin2026!" },
+                ].map((item) => (
+                  <button
+                    key={item.email}
+                    type="button"
+                    disabled={isLoading}
+                    onClick={() => handleQuickLogin(item.email, item.pass)}
+                    className="flex flex-col text-left px-2.5 py-1.5 rounded-lg border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] hover:border-evidence/50 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <span className="text-[12px] font-medium text-white leading-tight">
+                      {item.label}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono truncate">
+                      {item.email}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            )}
 
-            <div className="relative flex items-center justify-center my-4">
+            <div className="relative flex items-center justify-center my-3">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-border-subtle" />
               </div>
               <span className="relative bg-surface px-3 text-[11px] font-mono text-text-faint uppercase">
-                or institutional credentials
+                or manual credentials
               </span>
             </div>
 
@@ -308,6 +400,10 @@ export function AuthModal() {
               >
                 Create Account
               </button>
+            </div>
+
+            <div className="mb-3">
+              <Turnstile ref={captchaRef} onToken={setCaptchaToken} action="auth" />
             </div>
 
             {/* Sign In Form */}
@@ -378,8 +474,8 @@ export function AuthModal() {
 
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-primary-hover text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                  disabled={isLoading || !captchaToken}
+                  className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {isLoading ? (
                     <RotateCw className="h-4 w-4 animate-spin" />
@@ -520,8 +616,8 @@ export function AuthModal() {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !strength.isValid}
-                  className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-evidence to-evidence/90 text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+                  disabled={isLoading || !strength.isValid || !captchaToken}
+                  className="w-full mt-3 flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
                 >
                   {isLoading ? (
                     <RotateCw className="h-4 w-4 animate-spin" />
@@ -552,7 +648,7 @@ export function AuthModal() {
             {simulatedDevOtp && (
               <div className="rounded-xl border border-evidence/40 bg-evidence/10 p-3 text-[11px] text-evidence flex items-center justify-between">
                 <div>
-                  <span className="font-bold">🔑 Free Dev Mode OTP:</span>{" "}
+                  <span className="font-bold">Development OTP:</span>{" "}
                   <span className="font-mono text-base font-black tracking-widest">{simulatedDevOtp}</span>
                 </div>
                 <button
@@ -580,10 +676,12 @@ export function AuthModal() {
               />
             </div>
 
+            <Turnstile ref={captchaRef} onToken={setCaptchaToken} action="verify" />
+
             <button
               type="submit"
-              disabled={isLoading || otpCode.length !== 6}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-evidence to-evidence/90 text-surface-dark py-2.5 text-[13px] font-semibold hover:opacity-95 transition-all shadow-md disabled:opacity-50 cursor-pointer"
+              disabled={isLoading || otpCode.length !== 6 || !captchaToken}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-fill hover:bg-brand-press text-paper py-2.5 text-[13px] font-semibold transition-all shadow-md disabled:opacity-50 cursor-pointer"
             >
               {isLoading ? (
                 <RotateCw className="h-4 w-4 animate-spin" />

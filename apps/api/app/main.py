@@ -19,15 +19,21 @@ Every substitution is isolated behind an interface in services/ so swapping
 in real Azure services later is a config + adapter change, not a rewrite.
 See docs/decisions/0001-local-dev-substitutions.md.
 """
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import db
+from app import config, db
 from app.routers import auth, copilot, decision_eval, documents, evaluation, graph, learning, observability, retrieval, system
 from app.services.pipeline import IngestionQueue
+from app.security_middleware import SecurityMiddleware
 from app.services import memory_manager, skill_manager
+
+# Fail closed before serving a single request if auth is misconfigured
+# (default secret, dev-token minting enabled in production, ...).
+config.validate_security_config()
 
 
 @asynccontextmanager
@@ -36,8 +42,8 @@ async def lifespan(app: FastAPI):
     try:
         memory_manager.seed_default_memories_if_empty()
         skill_manager.seed_default_skills_if_empty()
-    except Exception as exc:
-        pass
+    except Exception:  # noqa: BLE001 -- seeding is best-effort, never blocks startup
+        logging.getLogger("app").exception("default memory/skill seeding failed")
     app.state.ingestion_queue = IngestionQueue()
     app.state.ingestion_queue.start()
     yield
@@ -54,15 +60,25 @@ app = FastAPI(
     description="Layout-aware hybrid RAG backend for call report intelligence.",
     version="0.2.0",
     lifespan=lifespan,
+    # Interactive docs enumerate every route and schema -- handy locally,
+    # free reconnaissance for an attacker in production.
+    docs_url=None if config.IS_PRODUCTION else "/docs",
+    redoc_url=None if config.IS_PRODUCTION else "/redoc",
+    openapi_url=None if config.IS_PRODUCTION else "/openapi.json",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:4500"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=config.CORS_ALLOWED_ORIGINS,
+    # Auth is a bearer header, never a cookie -- no need to allow credentials.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+    max_age=600,
 )
+# Added after CORS so it wraps it: rate-limit/size checks run first and
+# security headers land on every response, including CORS preflights.
+app.add_middleware(SecurityMiddleware)
 
 app.include_router(system.router)
 app.include_router(auth.router)

@@ -151,7 +151,7 @@ def get_lexicon(
 def update_term_status(
     term_id: int,
     req: UpdateLexiconStatusRequest,
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Approves or rejects a discovered term."""
     success = lexicon_miner.update_lexicon_status(
@@ -281,7 +281,7 @@ def delete_user_memory(
     """Deletes an analyst user memory item."""
     from app.services import memory_manager
 
-    deleted = memory_manager.delete_user_memory(memory_id, identity.tenant_id)
+    deleted = memory_manager.delete_user_memory(memory_id, identity.tenant_id, user_id=identity.sub)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
     return {"status": "ok", "deleted": memory_id}
@@ -290,7 +290,7 @@ def delete_user_memory(
 @router.post("/memories/tenant")
 def create_tenant_memory(
     req: UpsertTenantMemoryRequest,
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Creates or updates a firm-wide credit guideline memory item."""
     from app.services import memory_manager
@@ -308,7 +308,7 @@ def create_tenant_memory(
 @router.delete("/memories/tenant/{memory_id}")
 def delete_tenant_memory(
     memory_id: str,
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Deletes or deactivates a firm-wide guideline memory item."""
     from app.services import memory_manager
@@ -353,7 +353,7 @@ def get_skills(
 @router.post("/skills")
 def create_skill(
     req: UpsertSkillRequest,
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Creates or updates a procedural financial analysis skill."""
     from app.services import skill_manager
@@ -375,7 +375,7 @@ def create_skill(
 def update_skill_state(
     skill_id: str,
     req: UpdateSkillStateRequest,
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Updates skill state ('active', 'stale', 'archived')."""
     from app.services import skill_manager
@@ -403,7 +403,7 @@ def curator_status(
 
 @router.post("/curator/run")
 def run_curator(
-    identity: auth.Identity = Depends(auth.require_identity),
+    identity: auth.Identity = Depends(auth.require_admin),
 ) -> dict[str, Any]:
     """Triggers an on-demand knowledge curation and lifecycle maintenance cycle."""
     from app.services import curator

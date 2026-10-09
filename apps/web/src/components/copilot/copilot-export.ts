@@ -75,16 +75,16 @@ export function exportToDocx(session: ChatSession): void {
       <meta charset='utf-8'>
       <title>${session.title}</title>
       <style>
-        body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.6; color: #1a1a1a; margin: 40px; }
-        h1 { color: #0f172a; font-size: 20pt; border-bottom: 2px solid #0284c7; padding-bottom: 6px; margin-bottom: 4px; }
-        .meta { font-size: 9pt; color: #64748b; margin-bottom: 24px; }
-        .turn-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
-        .query-label { font-size: 9pt; font-weight: bold; color: #0284c7; text-transform: uppercase; margin-bottom: 4px; }
-        .query { font-size: 13pt; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
-        .answer { font-size: 11pt; color: #334155; line-height: 1.7; margin-bottom: 16px; }
-        .sources-title { font-size: 10pt; font-weight: bold; color: #475569; border-top: 1px solid #cbd5e1; padding-top: 10px; margin-top: 14px; }
-        .source-item { font-size: 9.5pt; color: #475569; margin-bottom: 8px; }
-        .source-badge { font-family: monospace; font-size: 8.5pt; background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px; }
+        body { font-family: 'Calibri', 'Segoe UI', sans-serif; font-size: 11pt; line-height: 1.6; color: #1D1A18; margin: 40px; }
+        h1 { color: #161514; font-size: 20pt; border-bottom: 2px solid #8F7240; padding-bottom: 6px; margin-bottom: 4px; }
+        .meta { font-size: 9pt; color: #8E8273; margin-bottom: 24px; }
+        .turn-box { background: #F3E8D6; border: 1px solid #E6D5BD; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+        .query-label { font-size: 9pt; font-weight: bold; color: #8F7240; text-transform: uppercase; margin-bottom: 4px; }
+        .query { font-size: 13pt; font-weight: 600; color: #161514; margin-bottom: 12px; }
+        .answer { font-size: 11pt; color: #3A3530; line-height: 1.7; margin-bottom: 16px; }
+        .sources-title { font-size: 10pt; font-weight: bold; color: #4A433D; border-top: 1px solid #CFC0A9; padding-top: 10px; margin-top: 14px; }
+        .source-item { font-size: 9.5pt; color: #4A433D; margin-bottom: 8px; }
+        .source-badge { font-family: monospace; font-size: 8.5pt; background: #F3E8D6; color: #6E5832; padding: 2px 6px; border-radius: 4px; }
       </style>
     </head>
     <body>
@@ -182,13 +182,13 @@ export function exportToPdf(session: ChatSession): void {
           @page { size: A4; margin: 20mm; }
           body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            color: #111827;
+            color: #1A1817;
             line-height: 1.6;
             margin: 0;
             padding: 0;
           }
           .header {
-            border-bottom: 2px solid #0ea5e9;
+            border-bottom: 2px solid #B8924F;
             padding-bottom: 12px;
             margin-bottom: 24px;
           }
@@ -196,53 +196,53 @@ export function exportToPdf(session: ChatSession): void {
             font-size: 11px;
             font-weight: 700;
             letter-spacing: 1px;
-            color: #0ea5e9;
+            color: #B8924F;
             text-transform: uppercase;
           }
           h1 {
             font-size: 22px;
             margin: 6px 0 4px;
-            color: #0f172a;
+            color: #161514;
           }
           .date {
             font-size: 11px;
-            color: #64748b;
+            color: #8E8273;
           }
           .turn {
             margin-bottom: 28px;
             padding-bottom: 20px;
-            border-bottom: 1px solid #e2e8f0;
+            border-bottom: 1px solid #E6D5BD;
             page-break-inside: avoid;
           }
           .turn-header {
             font-size: 10px;
             font-weight: 700;
-            color: #64748b;
+            color: #8E8273;
             text-transform: uppercase;
             letter-spacing: 0.5px;
           }
           .query {
             font-size: 15px;
-            color: #0f172a;
+            color: #161514;
             margin: 4px 0 12px;
           }
           .answer {
             font-size: 12px;
-            color: #334155;
+            color: #3A3530;
             line-height: 1.7;
           }
           .evidence-block {
             margin-top: 14px;
             padding: 12px;
-            background: #f8fafc;
-            border-left: 3px solid #0ea5e9;
+            background: #F3E8D6;
+            border-left: 3px solid #B8924F;
             border-radius: 4px;
           }
           .evidence-block h4 {
             margin: 0 0 8px;
             font-size: 11px;
             text-transform: uppercase;
-            color: #475569;
+            color: #4A433D;
           }
           .evidence-block ol {
             margin: 0;
@@ -254,13 +254,13 @@ export function exportToPdf(session: ChatSession): void {
           }
           .excerpt {
             font-style: italic;
-            color: #64748b;
+            color: #8E8273;
             margin: 2px 0 0;
           }
           .turn-footer {
             margin-top: 10px;
             font-size: 10px;
-            color: #94a3b8;
+            color: #A99A86;
             display: flex;
             gap: 16px;
           }

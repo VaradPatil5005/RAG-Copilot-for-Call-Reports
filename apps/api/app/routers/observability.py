@@ -19,29 +19,31 @@ Same unauthenticated, internal/system-harness posture as the existing
 """
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.services import auth
 
 from app.observability import dashboard
 
 router = APIRouter(prefix="/observability", tags=["observability"])
 
 
-@router.get("/stage-latency")
+@router.get("/stage-latency", dependencies=[Depends(auth.require_admin)])
 def stage_latency(limit: int = 2000) -> dict:
     return dashboard.stage_latency_breakdown(limit=limit)
 
 
-@router.get("/cost-per-query")
+@router.get("/cost-per-query", dependencies=[Depends(auth.require_admin)])
 def cost_per_query(limit: int = 50) -> dict:
     return dashboard.cost_per_query(limit=limit)
 
 
-@router.get("/errors")
+@router.get("/errors", dependencies=[Depends(auth.require_admin)])
 def errors(limit: int = 100) -> dict:
     return dashboard.failure_log(limit=limit)
 
 
-@router.get("/dashboard")
+@router.get("/dashboard", dependencies=[Depends(auth.require_admin)])
 def full_dashboard(stage_limit: int = 2000, cost_limit: int = 50, failure_limit: int = 100, metrics_limit: int = 500) -> dict:
     return dashboard.dashboard(
         stage_limit=stage_limit, cost_limit=cost_limit, failure_limit=failure_limit, metrics_limit=metrics_limit

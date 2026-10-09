@@ -2,6 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { signOut } from "next-auth/react";
+import { clearAuthToken } from "@/lib/auth";
 
 export type UserRole = "guest" | "customer" | "analyst" | "admin" | "super_admin";
 
@@ -28,6 +30,7 @@ interface AuthContextType {
   setIncognito: (val: boolean) => void;
   openAuthModal: (actionTitle?: string, onComplete?: () => void) => void;
   closeAuthModal: () => void;
+  completeAuthSuccess: () => void;
   refreshUser: () => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -87,12 +90,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setOnSuccessCallback(null);
   }, []);
 
+  const completeAuthSuccess = useCallback(() => {
+    if (onSuccessCallback) {
+      const cb = onSuccessCallback;
+      setOnSuccessCallback(null);
+      cb();
+    }
+    setIsAuthModalOpen(false);
+    setPendingActionTitle(null);
+  }, [onSuccessCallback]);
+
   const logout = useCallback(async () => {
+    // signOut() sends the CSRF token Auth.js requires. The previous bare
+    // POST to /api/auth/signout had none, was rejected, and left the
+    // session cookie in place -- the user only *looked* logged out.
     try {
-      await fetch("/api/auth/signout", { method: "POST" });
+      await signOut({ redirect: false });
     } catch (e) {
       console.error("Logout error:", e);
     }
+    clearAuthToken();
     setUser(null);
     router.push("/");
     router.refresh();
@@ -115,6 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIncognito,
         openAuthModal,
         closeAuthModal,
+        completeAuthSuccess,
         refreshUser,
         logout,
       }}

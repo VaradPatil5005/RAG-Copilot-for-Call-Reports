@@ -135,8 +135,12 @@ def query_by_predicate(
     retrieval uses -- not a Python filter applied after fetching every
     edge row."""
     conn = db.get_connection()
-    sql = "SELECT * FROM graph_edges WHERE predicate = ? AND tenant_id = ?"
-    params: list = [predicate, tenant_id]
+    if predicate and predicate.upper() not in ("ALL", "*"):
+        sql = "SELECT * FROM graph_edges WHERE predicate = ? AND tenant_id = ?"
+        params: list = [predicate, tenant_id]
+    else:
+        sql = "SELECT * FROM graph_edges WHERE tenant_id = ?"
+        params: list = [tenant_id]
     acl_sql, acl_params = db.acl_predicate_sql(principals)
     if acl_sql:
         sql += f" AND {acl_sql}"

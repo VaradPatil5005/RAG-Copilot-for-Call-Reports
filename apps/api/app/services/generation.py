@@ -205,6 +205,8 @@ class GeminiProvider:
 class GroqProvider:
     """Groq API -- OpenAI-compatible, fast open-weight models, free tier."""
 
+    _cooldown_until: float = 0.0
+
     def __init__(self, api_key: str, model: str = config.GROQ_MODEL) -> None:
         self._api_key = api_key
         self._model = model
@@ -213,6 +215,11 @@ class GroqProvider:
     @property
     def model_name(self) -> str:
         return f"groq:{self._model}"
+
+    def is_rate_limited(self) -> bool:
+        import time
+
+        return time.time() < GroqProvider._cooldown_until
 
     def generate(
         self,
@@ -225,8 +232,13 @@ class GroqProvider:
         import httpx
         import time
 
+        now = time.time()
+        if now < GroqProvider._cooldown_until:
+            rem = int(GroqProvider._cooldown_until - now)
+            raise RuntimeError(f"Groq API rate-limited (daily limit / quota active, cooling down for {rem}s)")
+
         last_resp = None
-        for attempt in range(4):
+        for attempt in range(2):
             try:
                 last_resp = httpx.post(
                     "https://api.groq.com/openai/v1/chat/completions",
@@ -240,10 +252,12 @@ class GroqProvider:
                         "response_format": {"type": "json_object"},
                         "max_tokens": max_tokens,
                     },
-                    timeout=45.0,
+                    timeout=20.0,
                 )
-                if last_resp.status_code == 429 and attempt < 3:
-                    wait_sec = 2.0 * (attempt + 1)
+                if last_resp.status_code == 429:
+                    resp_text = last_resp.text
+                    is_daily = "tokens per day" in resp_text or "TPD" in resp_text or "quota" in resp_text.lower()
+                    wait_sec = 2.0
                     retry_header = last_resp.headers.get("retry-after")
                     if retry_header:
                         try:
@@ -251,21 +265,38 @@ class GroqProvider:
                         except (ValueError, TypeError):
                             pass
                     else:
-                        m_wait = re.search(r"try again in ([\d\.]+)s", last_resp.text)
+                        m_wait = re.search(r"try again in ([\d\.]+)s", resp_text)
                         if m_wait:
                             try:
                                 wait_sec = float(m_wait.group(1)) + 0.5
                             except (ValueError, TypeError):
                                 pass
-                    logger.info("Groq rate limited (429), waiting %.1fs (attempt %d)...", wait_sec, attempt + 1)
-                    time.sleep(min(max(wait_sec, 1.0), 25.0))
-                    continue
+
+                    if is_daily or wait_sec > 10.0:
+                        cooldown = min(max(wait_sec, 120.0), 600.0)
+                        GroqProvider._cooldown_until = time.time() + cooldown
+                        logger.warning(
+                            "Groq quota or token limit reached (429). Activating %ds cooldown and failing over immediately: %s",
+                            int(cooldown),
+                            resp_text[:120],
+                        )
+                        last_resp.raise_for_status()
+
+                    if attempt < 1 and wait_sec <= 5.0:
+                        logger.info("Groq transient 429, waiting %.1fs before single retry...", wait_sec)
+                        time.sleep(wait_sec)
+                        continue
+                    else:
+                        GroqProvider._cooldown_until = time.time() + 60.0
+                        last_resp.raise_for_status()
+
                 last_resp.raise_for_status()
                 break
             except httpx.TimeoutException:
-                if attempt < 3:
-                    time.sleep(2.0 * (attempt + 1))
+                if attempt < 1:
+                    time.sleep(1.0)
                     continue
+                GroqProvider._cooldown_until = time.time() + 30.0
                 raise
 
         data = last_resp.json()

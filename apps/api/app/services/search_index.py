@@ -33,12 +33,12 @@ from typing import Any
 import hnswlib
 import numpy as np
 
-from app import db
+from app import config, db
 from app.services import embeddings
 
 logger = logging.getLogger("retrieval.search_index")
 
-INDEX_ROOT = Path(__file__).resolve().parent.parent.parent / "data" / "index"
+INDEX_ROOT = config.DATA_DIR / "index"
 DEFAULT_INDEX_NAME = "callreports-v1"
 ACTIVE_INDEX_KEY = "active_index"
 
@@ -296,18 +296,30 @@ class IndexManager:
 
 _index_manager: IndexManager | None = None
 _index_manager_lock = threading.Lock()
+# Serialises vector-index *writes* (per-document indexing) with an active-
+# index switch, so a document can't be upserted into the old index after
+# the switch-time reconciliation below has already run.
+_index_write_lock = threading.RLock()
 
 
 def get_index_manager() -> IndexManager:
+    """Returns the manager for the *currently active* index version.
+
+    The active name is re-read from `search_index_meta` on every call (one
+    primary-key lookup) instead of being cached forever: with several
+    worker processes, or any other code path that switches versions, a
+    process holding a stale singleton kept indexing new uploads into the
+    old version and searching it -- those documents then vanished from
+    vector search for everyone reading the new version."""
     global _index_manager
+    active = db.row_to_dict(
+        db.get_connection()
+        .execute("SELECT value FROM search_index_meta WHERE key = ?", (ACTIVE_INDEX_KEY,))
+        .fetchone()
+    )
+    name = active["value"] if active else DEFAULT_INDEX_NAME
     with _index_manager_lock:
-        if _index_manager is None:
-            active = db.row_to_dict(
-                db.get_connection()
-                .execute("SELECT value FROM search_index_meta WHERE key = ?", (ACTIVE_INDEX_KEY,))
-                .fetchone()
-            )
-            name = active["value"] if active else DEFAULT_INDEX_NAME
+        if _index_manager is None or _index_manager.name != name:
             _index_manager = IndexManager(name)
         return _index_manager
 
@@ -324,9 +336,31 @@ def index_document(document_id: str, version: int) -> int:
             (document_id, version),
         ).fetchall()
     )
-    mgr = get_index_manager()
-    mgr.delete_document(document_id, version)
-    return mgr.upsert_chunks(rows)
+    with _index_write_lock:
+        mgr = get_index_manager()
+        mgr.delete_document(document_id, version)
+        return mgr.upsert_chunks(rows)
+
+
+def _reconcile_active_index(mgr: IndexManager) -> int:
+    """Adds any chunk that exists in `chunks` (the source of truth) but not
+    in the given index. Needed after every switch: a blue/green build
+    snapshots `chunks` when it *starts*, so documents ingested while it
+    ran went only into the old index; and a rollback to an older version
+    lacks everything ingested since it was last active. Without this,
+    those documents stayed in the DB but were invisible to vector search.
+    Returns the number of vectors added."""
+    indexed = set(mgr._id_map["chunk_to_label"].keys())
+    conn = db.get_connection()
+    rows = db.rows_to_list(
+        conn.execute("SELECT chunk_id, document_id, version, content, content_hash FROM chunks").fetchall()
+    )
+    missing = [r for r in rows if r["chunk_id"] not in indexed]
+    if not missing:
+        return 0
+    added = mgr.upsert_chunks(missing)
+    logger.info("Reconciled index %r: added %d vectors missing after switch", mgr.name, added)
+    return added
 
 
 def rebuild_index() -> int:
@@ -398,14 +432,16 @@ def switch_active_index(name: str) -> None:
     global _index_manager
     if name not in _index_version_names():
         raise ValueError(f"Index version {name!r} does not exist on disk under {INDEX_ROOT}")
-    with db.tx() as conn:
-        conn.execute(
-            "INSERT INTO search_index_meta (key, value, updated_at) VALUES (?,?,?) "
-            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-            (ACTIVE_INDEX_KEY, name, _now()),
-        )
-    with _index_manager_lock:
-        _index_manager = None
+    with _index_write_lock:
+        with db.tx() as conn:
+            conn.execute(
+                "INSERT INTO search_index_meta (key, value, updated_at) VALUES (?,?,?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                (ACTIVE_INDEX_KEY, name, _now()),
+            )
+        with _index_manager_lock:
+            _index_manager = None
+        _reconcile_active_index(get_index_manager())
 
 
 def get_active_index_name() -> str:

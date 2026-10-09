@@ -22,7 +22,9 @@ import json
 from pathlib import Path
 from typing import Any
 
-DATA_ROOT = Path(__file__).resolve().parent.parent.parent / "data"
+from app import config
+
+DATA_ROOT = config.DATA_DIR
 RAW_ROOT = DATA_ROOT / "raw"
 DERIVED_ROOT = DATA_ROOT / "derived"
 
@@ -50,6 +52,19 @@ def save_raw_pdf(tenant_id: str, document_id: str, version: int, data: bytes) ->
     d = raw_dir(tenant_id, document_id, version)
     d.mkdir(parents=True, exist_ok=True)
     path = d / "source.pdf"
+    if not path.exists():
+        path.write_bytes(data)
+    return str(path)
+
+
+def save_raw_original(tenant_id: str, document_id: str, version: int, extension: str, data: bytes) -> str:
+    """Immutable copy of a non-PDF upload exactly as received (the .docx/.doc
+    the ingested source.pdf was rendered from)."""
+    if extension not in (".docx", ".doc"):
+        raise ValueError(f"unexpected original extension {extension!r}")
+    d = raw_dir(tenant_id, document_id, version)
+    d.mkdir(parents=True, exist_ok=True)
+    path = d / f"source{extension}"
     if not path.exists():
         path.write_bytes(data)
     return str(path)
